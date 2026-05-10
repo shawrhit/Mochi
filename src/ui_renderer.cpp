@@ -23,7 +23,7 @@ static const unsigned char PROGMEM image_passport_left_bits[] = {0x3c,0x40,0x98,
 
 static const unsigned char PROGMEM image_Space_bits[] = {0x1f,0xff,0xff,0xff,0xff,0xff,0xff,0xfe,0x00,0x60,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xe0,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x80,0x7f,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x3f,0xff,0xff,0xff,0xff,0xff,0xff,0xfe,0x00};
 
-void drawScreen_1(Adafruit_SSD1306& display, const String& timeText, const String& dateText, bool wifiOk, bool bleOk, int batteryPercent) {
+void drawScreen_1(Adafruit_SSD1306& display, const String& timeText, const String& dateText, const String& weatherText, bool wifiOk, bool bleOk, int batteryPercent) {
   // Render the Lopaka-generated clock layout (static art + dynamic time/date)
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
@@ -40,22 +40,24 @@ void drawScreen_1(Adafruit_SSD1306& display, const String& timeText, const Strin
   display.drawBitmap(74, 16, image_DolphinReadingSuccess_bits, 59, 63, SSD1306_WHITE);
 
   // Primary clock text (use HH:MM if full time provided)
- /*String displayTime = timeText;
+  String displayTime = timeText;
   if (displayTime.length() > 5) {
     displayTime = displayTime.substring(0, 5);
-  }*/
+  }
   display.setTextSize(2);
   display.setCursor(8, 29);
-  display.print("19:02");
+  display.print(displayTime);
 
   // Date text below clock
   display.setTextSize(1);
   display.setCursor(10, 48);
-  display.print("09/05/26");
+  display.print(dateText);
 
   // Small decorative elements (as in Lopaka sample). Weather label left as optional.
-  display.setCursor(9, 17);
-  display.print("19C Sunny");
+  if (!weatherText.isEmpty()) {
+    display.setCursor(9, 17);
+    display.print(weatherText);
+  }
 
   display.drawLine(29, 18, 29, 21, SSD1306_WHITE);
   display.drawCircle(13, 7, 4, SSD1306_BLACK);
@@ -81,18 +83,29 @@ void UiRenderer::showBootBrand() {
 }
 
 void UiRenderer::showPortalScreen(const String& apName, const String& ip) {
-  // Minimal portal placeholder — keep UI focused on clock
   display_.clearDisplay();
   display_.setTextColor(SSD1306_WHITE);
   display_.setTextSize(1);
-  display_.setCursor(10, 28);
-  display_.print("Portal unavailable");
+  display_.setCursor(8, 10);
+  display_.print("WiFi Setup");
+  display_.drawLine(8, 20, 120, 20, SSD1306_WHITE);
+
+  display_.setCursor(8, 26);
+  display_.print("AP: ");
+  display_.print(apName);
+
+  display_.setCursor(8, 38);
+  display_.print("IP: ");
+  display_.print(ip);
+
+  display_.setCursor(8, 52);
+  display_.print("Open in browser");
   display_.display();
 }
 
-void UiRenderer::showClockScreen(const String& timeText, const String& dateText, bool wifiOk, bool bleOk, int batteryPercent) {
+void UiRenderer::showClockScreen(const String& timeText, const String& dateText, const String& weatherText, bool wifiOk, bool bleOk, int batteryPercent) {
   // Use the lopaka-generated screen with injected dynamic values
-  drawScreen_1(display_, timeText, dateText, wifiOk, bleOk, batteryPercent);
+  drawScreen_1(display_, timeText, dateText, weatherText, wifiOk, bleOk, batteryPercent);
 }
 
 void UiRenderer::showNotificationScreen(const String& text) {

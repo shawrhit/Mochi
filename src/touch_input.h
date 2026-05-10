@@ -5,7 +5,10 @@ class TouchInput {
   TouchInput();
 
   void begin(int pin);
-  bool wasTouched();
+  void update();
+  bool wasTapped();
+  bool isPressed() const;
+  unsigned long pressedMs() const;
 
  private:
   int pin_;
@@ -13,4 +16,6 @@ class TouchInput {
   bool stableState_;
   bool touchLatched_;
   unsigned long lastDebounceMs_;
+  unsigned long pressStartMs_;
+  bool tapped_;
 };

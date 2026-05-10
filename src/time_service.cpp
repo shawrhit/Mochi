@@ -3,13 +3,21 @@
 #include <Arduino.h>
 #include <time.h>
 
-TimeService::TimeService() : synced_(false) {}
+TimeService::TimeService() : synced_(false), tzSpec_("UTC0") {}
+
+void TimeService::setTimezone(const char* tzSpec) {
+  if (tzSpec != nullptr) {
+    tzSpec_ = tzSpec;
+  }
+}
 
 void TimeService::begin(bool networkAvailable) {
   if (!networkAvailable) {
     return;
   }
 
+  setenv("TZ", tzSpec_, 1);
+  tzset();
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   trySync(true);
 }

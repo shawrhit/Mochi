@@ -1,5 +1,7 @@
 #include "wifi_portal.h"
 
+#include <Arduino.h>
+#include <DNSServer.h>
 #include <Preferences.h>
 #include <WebServer.h>
 #include <WiFi.h>
@@ -7,12 +9,17 @@
 namespace {
 Preferences prefs;
 WebServer server(80);
+DNSServer dnsServer;
 
 constexpr char kPrefsNs[] = "wifi";
-constexpr char kPrefsSsid[] = "5G Lab-2.4G";
-constexpr char kPrefsPass[] = "penance@007";
+constexpr char kPrefsSsid[] = "ssid";
+constexpr char kPrefsPass[] = "pass";
+constexpr char kPrefsCity[] = "city";
+constexpr char kPrefsSkip[] = "skip_wifi";
 constexpr char kPortalSsid[] = "shaws.systems";
 constexpr char kPortalPass[] = "shawsetup";
+constexpr int kPortalChannel = 1;
+constexpr wifi_power_t kPortalTxPower = WIFI_POWER_19_5dBm;
 
 const char kPortalPage[] PROGMEM = R"HTML(
 <!doctype html>
@@ -43,7 +50,10 @@ const char kPortalPage[] PROGMEM = R"HTML(
       <input name="ssid" required maxlength="64" />
       <label>WiFi Password</label>
       <input name="pass" type="password" maxlength="64" />
+      <label>City</label>
+      <input name="city" maxlength="64" placeholder="Shillong" />
       <button type="submit">Save & Connect</button>
+      <button type="submit" formaction="/skip">Skip WiFi For Now</button>
       <div class="foot">AP: shaws.systems | pass: shawsetup</div>
     </form>
   </div>
@@ -56,14 +66,23 @@ WifiPortal::WifiPortal() : apMode_(false) {}
 
 bool WifiPortal::tryConnectSaved() {
   prefs.begin(kPrefsNs, false);
-  const String ssid = prefs.getString(kPrefsSsid, "");
-  const String pass = prefs.getString(kPrefsPass, "");
+  String ssid = "";
+  String pass = "";
+  if (prefs.isKey(kPrefsSsid)) {
+    ssid = prefs.getString(kPrefsSsid, "");
+  }
+  if (prefs.isKey(kPrefsPass)) {
+    pass = prefs.getString(kPrefsPass, "");
+  }
   prefs.end();
 
   if (ssid.isEmpty()) {
+    Serial.println("WiFi: no saved SSID, starting AP");
     return false;
   }
 
+  Serial.print("WiFi: trying SSID ");
+  Serial.println(ssid);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), pass.c_str());
 
@@ -72,7 +91,9 @@ bool WifiPortal::tryConnectSaved() {
     delay(250);
   }
 
-  return WiFi.status() == WL_CONNECTED;
+  const bool ok = WiFi.status() == WL_CONNECTED;
+  Serial.println(ok ? "WiFi: connected" : "WiFi: connect failed");
+  return ok;
 }
 
 void WifiPortal::setupPortalRoutes() {
@@ -81,6 +102,7 @@ void WifiPortal::setupPortalRoutes() {
   server.on("/save", HTTP_POST, []() {
     const String ssid = server.arg("ssid");
     const String pass = server.arg("pass");
+    const String city = server.arg("city");
 
     if (ssid.isEmpty()) {
       server.send(400, "text/plain", "SSID is required");
@@ -90,6 +112,10 @@ void WifiPortal::setupPortalRoutes() {
     prefs.begin(kPrefsNs, false);
     prefs.putString(kPrefsSsid, ssid);
     prefs.putString(kPrefsPass, pass);
+    if (!city.isEmpty()) {
+      prefs.putString(kPrefsCity, city);
+    }
+    prefs.putBool(kPrefsSkip, false);
     prefs.end();
 
     server.send(200, "text/plain", "Saved. Rebooting to connect...");
@@ -97,17 +123,51 @@ void WifiPortal::setupPortalRoutes() {
     ESP.restart();
   });
 
+  server.on("/skip", HTTP_POST, []() {
+    prefs.begin(kPrefsNs, false);
+    prefs.putBool(kPrefsSkip, true);
+    prefs.end();
+
+    server.send(200, "text/plain", "WiFi skipped. Rebooting offline...");
+    delay(500);
+    ESP.restart();
+  });
+
+  server.onNotFound([]() {
+    server.sendHeader("Location", String("http://") + WiFi.softAPIP().toString(), true);
+    server.send(302, "text/plain", "");
+  });
+
   server.begin();
 }
 
 void WifiPortal::startPortalAp() {
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.softAP(kPortalSsid, kPortalPass);
+  WiFi.mode(WIFI_AP);
+  WiFi.setSleep(false);
+  WiFi.setTxPower(kPortalTxPower);
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  const bool apOk = WiFi.softAP(kPortalSsid, kPortalPass, kPortalChannel, false, 4);
+  dnsServer.start(53, "*", WiFi.softAPIP());
+  Serial.print("WiFi AP: ");
+  Serial.print(kPortalSsid);
+  Serial.print(" pass: ");
+  Serial.print(kPortalPass);
+  Serial.print(" ch: ");
+  Serial.print(kPortalChannel);
+  Serial.print(" ip: ");
+  Serial.println(WiFi.softAPIP());
+  Serial.println(apOk ? "WiFi AP: started" : "WiFi AP: failed to start");
   setupPortalRoutes();
   apMode_ = true;
 }
 
 void WifiPortal::begin() {
+  if (consumeSkipWifi()) {
+    WiFi.mode(WIFI_OFF);
+    apMode_ = false;
+    return;
+  }
+
   if (tryConnectSaved()) {
     apMode_ = false;
     return;
@@ -118,6 +178,7 @@ void WifiPortal::begin() {
 
 void WifiPortal::handle() {
   if (apMode_) {
+    dnsServer.processNextRequest();
     server.handleClient();
   }
 }
@@ -131,4 +192,32 @@ String WifiPortal::localIp() const {
     return WiFi.softAPIP().toString();
   }
   return WiFi.localIP().toString();
+}
+
+String WifiPortal::city() const { return readCity_(); }
+
+void WifiPortal::markSkipWifi() {
+  prefs.begin(kPrefsNs, false);
+  prefs.putBool(kPrefsSkip, true);
+  prefs.end();
+}
+
+bool WifiPortal::consumeSkipWifi() {
+  prefs.begin(kPrefsNs, false);
+  const bool skip = prefs.getBool(kPrefsSkip, false);
+  if (skip) {
+    prefs.putBool(kPrefsSkip, false);
+  }
+  prefs.end();
+  return skip;
+}
+
+String WifiPortal::readCity_() const {
+  prefs.begin(kPrefsNs, false);
+  String city = "Shillong";
+  if (prefs.isKey(kPrefsCity)) {
+    city = prefs.getString(kPrefsCity, "Shillong");
+  }
+  prefs.end();
+  return city;
 }

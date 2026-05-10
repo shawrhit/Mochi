@@ -12,6 +12,9 @@ class WifiPortal {
   bool isWifiConnected() const;
   bool isApMode() const;
   String localIp() const;
+  String city() const;
+  void markSkipWifi();
+  bool consumeSkipWifi();
 
  private:
   bool apMode_;
@@ -19,4 +22,5 @@ class WifiPortal {
   void setupPortalRoutes();
   void startPortalAp();
   bool tryConnectSaved();
+  String readCity_() const;
 };

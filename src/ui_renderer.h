@@ -9,7 +9,7 @@ class UiRenderer {
 
   void showBootBrand();
   void showPortalScreen(const String& apName, const String& ip);
-  void showClockScreen(const String& timeText, const String& dateText, bool wifiOk, bool bleOk, int batteryPercent = -1);
+  void showClockScreen(const String& timeText, const String& dateText, const String& weatherText, bool wifiOk, bool bleOk, int batteryPercent = -1);
   void showNotificationScreen(const String& text);
 
  private:

@@ -8,6 +8,7 @@ class TimeService {
 
   void begin(bool networkAvailable);
   void trySync(bool networkAvailable);
+  void setTimezone(const char* tzSpec);
   bool isSynced() const;
 
   String timeString() const;
@@ -15,4 +16,5 @@ class TimeService {
 
  private:
   bool synced_;
+    const char* tzSpec_;
 };
