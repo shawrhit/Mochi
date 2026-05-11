@@ -139,3 +139,48 @@ String TimeService::dateString() const {
   strftime(buf, sizeof(buf), "%d %b %Y", &ti);
   return String(buf);
 }
+
+String TimeService::dayString() const {
+  time_t now;
+  time(&now);
+
+  struct tm ti;
+  localtime_r(&now, &ti);
+
+  char buf[8];
+  strftime(buf, sizeof(buf), "%a", &ti);
+  return String(buf);
+}
+
+String TimeService::dateShortString() const {
+  time_t now;
+  time(&now);
+
+  struct tm ti;
+  localtime_r(&now, &ti);
+
+  char buf[12];
+  strftime(buf, sizeof(buf), "%d %b", &ti);
+  return String(buf);
+}
+
+String TimeService::yearString() const {
+  time_t now;
+  time(&now);
+
+  struct tm ti;
+  localtime_r(&now, &ti);
+
+  char buf[6];
+  strftime(buf, sizeof(buf), "%Y", &ti);
+  return String(buf);
+}
+
+int TimeService::hour24() const {
+  time_t now;
+  time(&now);
+
+  struct tm ti;
+  localtime_r(&now, &ti);
+  return ti.tm_hour;
+}

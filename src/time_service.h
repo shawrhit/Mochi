@@ -13,6 +13,10 @@ class TimeService {
 
   String timeString() const;
   String dateString() const;
+  String dayString() const;
+  String dateShortString() const;
+  String yearString() const;
+  int hour24() const;
 
  private:
   bool synced_;

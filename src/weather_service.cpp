@@ -11,6 +11,10 @@ constexpr unsigned long kWeatherRefreshMs = 10UL * 60UL * 1000UL;
 WeatherService::WeatherService()
     : city_("Shillong"),
       display_("--C --"),
+  tempC_(-1),
+  windKph_(-1),
+  humidityPercent_(-1),
+  weatherCode_(-1),
       latitude_(0.0f),
       longitude_(0.0f),
       hasLocation_(false),
@@ -30,6 +34,14 @@ void WeatherService::setCity(const String& city) {
 }
 
 String WeatherService::weatherString() const { return display_; }
+
+int WeatherService::temperatureC() const { return tempC_; }
+
+int WeatherService::windKph() const { return windKph_; }
+
+int WeatherService::humidityPercent() const { return humidityPercent_; }
+
+int WeatherService::weatherCode() const { return weatherCode_; }
 
 void WeatherService::update(bool networkAvailable) {
   if (!networkAvailable) {
@@ -124,18 +136,25 @@ bool WeatherService::fetchCurrent_() {
 
   const String cw = body.substring(cwStart + 1, cwEnd);
   const int tempPos = cw.indexOf("\"temperature\":");
+  const int windPos = cw.indexOf("\"windspeed\":");
   const int codePos = cw.indexOf("\"weathercode\":");
-  if (tempPos < 0 || codePos < 0) {
+  if (tempPos < 0 || windPos < 0 || codePos < 0) {
     return false;
   }
 
   const int tempStart = tempPos + 14;
   const int tempEnd = cw.indexOf(',', tempStart);
+  const int windStart = windPos + 12;
+  const int windEnd = cw.indexOf(',', windStart);
   const int codeStart = codePos + 14;
   const int codeEnd = cw.indexOf(',', codeStart);
   const float temp = cw.substring(tempStart, tempEnd < 0 ? cw.length() : tempEnd).toFloat();
+  const float wind = cw.substring(windStart, windEnd < 0 ? cw.length() : windEnd).toFloat();
   const int code = cw.substring(codeStart, codeEnd < 0 ? cw.length() : codeEnd).toInt();
 
+  tempC_ = static_cast<int>(roundf(temp));
+  windKph_ = static_cast<int>(roundf(wind));
+  weatherCode_ = code;
   display_ = String(static_cast<int>(roundf(temp))) + "C " + codeToText_(code);
   lastFetchMs_ = millis();
   return true;

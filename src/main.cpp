@@ -82,8 +82,56 @@ String activeDateString() {
   return "Syncing";
 }
 
+String activeDayString() {
+  if (timeService.isSynced()) {
+    return timeService.dayString();
+  }
+  return "--";
+}
+
+String activeDateShortString() {
+  if (timeService.isSynced()) {
+    return timeService.dateShortString();
+  }
+  return "-- ---";
+}
+
+String activeYearString() {
+  if (timeService.isSynced()) {
+    return timeService.yearString();
+  }
+  return "----";
+}
+
+bool isNightTime() {
+  if (!timeService.isSynced()) {
+    return false;
+  }
+  const int hour = timeService.hour24();
+  return hour < 6 || hour >= 22;
+}
+
 void drawClock() {
-  ui.showClockScreen(activeTimeString(), activeDateString(), weatherService.weatherString(), wifiPortal.isWifiConnected(), bleNotifier.isConnected());
+  const int tempC = weatherService.temperatureC();
+  const int windKph = weatherService.windKph();
+  const int humidity = weatherService.humidityPercent();
+  const String tempText = tempC >= 0 ? String(tempC) + "C" : String("--C");
+  const String windText = windKph >= 0 ? String(windKph) + " km/h" : String("-- km/h");
+  const String humidityText = humidity >= 0 ? String(humidity) + "%" : String("--%");
+
+  ui.showClockScreen(
+      activeTimeString(),
+      activeDayString(),
+      activeDateShortString(),
+      activeYearString(),
+      wifiPortal.city(),
+      tempText,
+      humidityText,
+      windText,
+      weatherService.weatherCode(),
+      isNightTime(),
+      wifiPortal.isWifiConnected(),
+      bleNotifier.isConnected());
 }
 
 void enterAnimationMode(int playlistIndex) {

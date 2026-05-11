@@ -10,6 +10,10 @@ class WeatherService {
   void setCity(const String& city);
   void update(bool networkAvailable);
   String weatherString() const;
+  int temperatureC() const;
+  int windKph() const;
+  int humidityPercent() const;
+  int weatherCode() const;
 
  private:
   bool fetchGeocode_();
@@ -18,6 +22,10 @@ class WeatherService {
 
   String city_;
   String display_;
+  int tempC_;
+  int windKph_;
+  int humidityPercent_;
+  int weatherCode_;
   float latitude_;
   float longitude_;
   bool hasLocation_;
