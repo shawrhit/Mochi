@@ -138,6 +138,8 @@ void setup() {
     screenMode = ScreenMode::Portal;
     ui.showPortalScreen("shaws.systems", wifiPortal.localIp());
   }
+  Serial.print("WiFi: status ");
+  Serial.println(wifiPortal.isWifiConnected() ? "connected" : "not connected");
   timeService.setTimezone("IST-5:30");
   timeService.begin(wifiPortal.isWifiConnected());
   weatherService.begin(wifiPortal.city());

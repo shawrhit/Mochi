@@ -10,7 +10,7 @@ namespace {
 Preferences prefs;
 WebServer server(80);
 DNSServer dnsServer;
-
+    
 constexpr char kPrefsNs[] = "wifi";
 constexpr char kPrefsSsid[] = "ssid";
 constexpr char kPrefsPass[] = "pass";
@@ -18,6 +18,8 @@ constexpr char kPrefsCity[] = "city";
 constexpr char kPrefsSkip[] = "skip_wifi";
 constexpr char kPortalSsid[] = "shaws.systems";
 constexpr char kPortalPass[] = "shawsetup";
+constexpr char kFallbackSsid[] = "5G Lab-2.4G";
+constexpr char kFallbackPass[] = "penance@007";
 constexpr int kPortalChannel = 1;
 constexpr wifi_power_t kPortalTxPower = WIFI_POWER_19_5dBm;
 
@@ -77,8 +79,9 @@ bool WifiPortal::tryConnectSaved() {
   prefs.end();
 
   if (ssid.isEmpty()) {
-    Serial.println("WiFi: no saved SSID, starting AP");
-    return false;
+    ssid = kFallbackSsid;
+    pass = kFallbackPass;
+    Serial.println("WiFi: no saved SSID, trying fallback");
   }
 
   Serial.print("WiFi: trying SSID ");

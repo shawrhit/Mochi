@@ -16,5 +16,7 @@ class TimeService {
 
  private:
   bool synced_;
-    const char* tzSpec_;
+  const char* tzSpec_;
+  unsigned long lastAttemptMs_;
+  uint8_t attemptCount_;
 };
