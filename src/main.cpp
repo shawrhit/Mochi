@@ -119,16 +119,31 @@ void drawClock() {
   const String windText = windKph >= 0 ? String(windKph) + " km/h" : String("-- km/h");
   const String humidityText = humidity >= 0 ? String(humidity) + "%" : String("--%");
 
+  String ampm = " AM";
+  if (timeService.isSynced()) {
+    ampm = timeService.hour24() >= 12 ? " PM" : " AM";
+  }
+
+  String weatherDesc = "Sunny";
+  int code = weatherService.weatherCode();
+  if (code >= 1 && code <= 3) weatherDesc = "Cloudy";
+  else if (code >= 45) weatherDesc = "Rain";
+  
+  const String weatherText = tempText + " | " + weatherDesc;
+  const String dateText = activeDayString() + ", " + activeDateShortString();
+
+  String timeTxt = activeTimeString();
+  if (timeTxt.length() > 5) {
+    timeTxt = timeTxt.substring(0, 5);
+  }
+
   ui.showClockScreen(
-      activeTimeString(),
-      activeDayString(),
-      activeDateShortString(),
-      activeYearString(),
+      timeTxt,
+      dateText,
+      weatherText,
       wifiPortal.city(),
-      tempText,
-      humidityText,
-      windText,
-      weatherService.weatherCode(),
+      ampm,
+      code,
       isNightTime(),
       wifiPortal.isWifiConnected(),
       bleNotifier.isConnected());

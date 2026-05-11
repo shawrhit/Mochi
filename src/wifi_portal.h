@@ -18,6 +18,7 @@ class WifiPortal {
 
  private:
   bool apMode_;
+  unsigned long apStartTime_;
 
   void setupPortalRoutes();
   void startPortalAp();

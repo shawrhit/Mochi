@@ -64,7 +64,7 @@ const char kPortalPage[] PROGMEM = R"HTML(
 )HTML";
 }  // namespace
 
-WifiPortal::WifiPortal() : apMode_(false) {}
+WifiPortal::WifiPortal() : apMode_(false), apStartTime_(0) {}
 
 bool WifiPortal::tryConnectSaved() {
   prefs.begin(kPrefsNs, false);
@@ -183,6 +183,20 @@ void WifiPortal::handle() {
   if (apMode_) {
     dnsServer.processNextRequest();
     server.handleClient();
+
+    // Timeout logic: if AP is running for > 3 minutes (180000ms)
+    // and no one is connected, flush wifi and restart to try again.
+    if (millis() - apStartTime_ > 180000) {
+      if (WiFi.softAPgetStationNum() == 0) {
+        Serial.println("WiFi: AP timeout with no connections. Resetting to retry...");
+        WiFi.disconnect(true, true);
+        delay(500);
+        ESP.restart();
+      } else {
+        // Someone is connected, extend the timeout
+        apStartTime_ = millis();
+      }
+    }
   }
 }
 
