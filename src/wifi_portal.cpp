@@ -21,7 +21,6 @@ constexpr char kPortalPass[] = "shawsetup";
 constexpr char kFallbackSsid[] = "5G Lab-2.4G";
 constexpr char kFallbackPass[] = "penance@007";
 constexpr int kPortalChannel = 1;
-constexpr wifi_power_t kPortalTxPower = WIFI_POWER_19_5dBm;
 
 const char kPortalPage[] PROGMEM = R"HTML(
 <!doctype html>
@@ -87,6 +86,8 @@ bool WifiPortal::tryConnectSaved() {
   Serial.print("WiFi: trying SSID ");
   Serial.println(ssid);
   WiFi.mode(WIFI_STA);
+  // ESP32-C3 workaround: keep TX power at 8.5 dBm (DO NOT change).
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);
   WiFi.begin(ssid.c_str(), pass.c_str());
 
   const unsigned long start = millis();
@@ -147,7 +148,8 @@ void WifiPortal::setupPortalRoutes() {
 void WifiPortal::startPortalAp() {
   WiFi.mode(WIFI_AP);
   WiFi.setSleep(false);
-  WiFi.setTxPower(kPortalTxPower);
+  // ESP32-C3 workaround: keep TX power at 8.5 dBm (DO NOT change).
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   const bool apOk = WiFi.softAP(kPortalSsid, kPortalPass, kPortalChannel, false, 4);
   dnsServer.start(53, "*", WiFi.softAPIP());
