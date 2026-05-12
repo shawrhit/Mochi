@@ -51,7 +51,7 @@ void UiRenderer::showPortalScreen(const String& apName, const String& ip) {
   display_.display();
 }
 
-void UiRenderer::showNotificationScreen(const String& text) {
+void UiRenderer::showNotificationScreen(const String& text, bool isCall) {
   display_.clearDisplay();
 
   display_.setTextColor(SSD1306_WHITE);
@@ -68,11 +68,14 @@ void UiRenderer::showNotificationScreen(const String& text) {
   display_.setCursor(8, 31);
   display_.print(text);
 
-  display_.drawBitmap(2, 3, image_message_bits, 16, 16, 1);
+  if (isCall) {
+    display_.drawBitmap(2, 2, image_phone_call_in_out_bits, 15, 16, 1);
+  } else {
+    display_.drawBitmap(2, 3, image_message_bits, 16, 16, 1);
+  }
   display_.drawBitmap(0, 54, image_bottom_notif_bits, 128, 10, 1);
   display_.drawBitmap(0, 18, image_frame_notif_bits, 128, 46, 0);
   display_.drawBitmap(122, 20, image_menu_arrow_down_left_bits, 4, 4, 1);
-  display_.drawBitmap(2, 2, image_phone_call_in_out_bits, 15, 16, 1);
   display_.display();
 }
 
@@ -140,9 +143,7 @@ void UiRenderer::showClockScreen(
 
   if (wifiOk) {
     // WiFi
-    display_.drawBitmap(12, 2, image_WiFi_bits, 7, 10, 1);
-    // Part Of WiFi
-    display_.drawBitmap(19, 5, image_Part_Of_WiFi_bits, 1, 1, 1);
+    display_.drawBitmap(14, 2, image_wifi_bits, 11, 9, 1);
   }
 
   // City

@@ -10,6 +10,7 @@ class SoundManager {
   void playNotificationMelody() const;
   void playMelody(const char* melody) const;
   void startMelody(const char* melody);
+  void stopMelody();
   bool updateMelody();
   bool isMelodyActive() const;
 

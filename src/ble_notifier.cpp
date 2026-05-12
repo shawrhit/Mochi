@@ -3,6 +3,7 @@
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
+#include <esp_gap_ble_api.h>
 
 namespace {
 BleNotifier* gNotifier = nullptr;
@@ -44,12 +45,33 @@ class NotifierTextCallbacks : public BLECharacteristicCallbacks {
     gNotifier->setLatest(String(value.c_str()));
   }
 };
+
+void clearBondedDevices_() {
+  int count = esp_ble_get_bond_device_num();
+  if (count <= 0) {
+    return;
+  }
+
+  esp_ble_bond_dev_t* list = static_cast<esp_ble_bond_dev_t*>(malloc(sizeof(esp_ble_bond_dev_t) * count));
+  if (!list) {
+    return;
+  }
+
+  if (esp_ble_get_bond_device_list(&count, list) == ESP_OK) {
+    for (int i = 0; i < count; ++i) {
+      esp_ble_remove_bond_device(list[i].bd_addr);
+    }
+  }
+
+  free(list);
+}
 }  // namespace
 
 BleNotifier::BleNotifier() : connected_(false), hasNew_(false), latest_("") {}
 
 void BleNotifier::begin() {
   gNotifier = this;
+  clearBondedDevices_();
   BLEDevice::init(kDeviceName);
 
   BLEServer* server = BLEDevice::createServer();

@@ -4,7 +4,7 @@
 #include <Adafruit_SSD1306.h>
 #include "animation_catalog.h"
 #include "animation_player.h"
-#include "ble_notifier.h"
+#include <ChronosESP32.h>
 #include "sound_manager.h"
 #include "time_service.h"
 #include "touch_input.h"
@@ -28,11 +28,17 @@ constexpr unsigned long kIdleToFirstAnimationMs = 10000;
 constexpr unsigned long kMinIdleToAnimationMs = 10000;
 constexpr unsigned long kMaxIdleToAnimationMs = 30000;
 constexpr unsigned long kNotificationDisplayMs = 5000;
+constexpr unsigned long kCallMelodyGapMs = 1000;
 constexpr unsigned long kLongPressMs = 1200;
 constexpr unsigned long kBootTouchWindowMs = 3500;
 
 const char kGreetingMelody[] =
   "G4 200 20, C5 200 20, E5 200 20, G5 200 20, C6 200 20, D6 200 20, E6 400 200";
+const char kNotificationMelody[] =
+  "G6 50 10, B6 100 10";
+const char kCallMelody[] =
+  "C6 150 50, E6 150 50, G6 150 50, C7 300 100, G6 150 50, E6 150 50, D6 150 50, G6 300 100, C6 150 50, E6 150 50, G6 150 50, C7 500 800";
+constexpr int kCallMelodyPlays = 3;
 
 AnimationPlayer animationPlayer(display);
 UiRenderer ui(display);
@@ -40,7 +46,7 @@ SoundManager soundManager;
 WifiPortal wifiPortal;
 TimeService timeService;
 WeatherService weatherService;
-BleNotifier bleNotifier;
+ChronosESP32 watch("shaws.systems");
 TouchInput touchInput;
 
 enum class ScreenMode {
@@ -57,6 +63,72 @@ unsigned long nextAnimationAtMs = 0;
 unsigned long notificationUntilMs = 0;
 bool longPressHandled = false;
 bool networkStarted = false;
+bool hasNotification = false;
+String latestNotification = "";
+bool latestNotificationIsCall = false;
+int callMelodyPlaysLeft = 0;
+unsigned long nextCallMelodyAtMs = 0;
+bool callMelodySequenceActive = false;
+bool callMelodyToneActive = false;
+bool callAlertActive = false;
+bool callAlertEnded = false;
+
+void chronosConnectionCallback(bool state) {
+  Serial.print("Chronos: ");
+  Serial.println(state ? "connected" : "disconnected");
+}
+
+void chronosNotificationCallback(Notification notification) {
+  if (!notification.title.isEmpty()) {
+    latestNotification = notification.title + ": " + notification.message;
+  } else {
+    latestNotification = notification.message;
+  }
+  soundManager.startMelody(kNotificationMelody);
+  latestNotificationIsCall = false;
+  hasNotification = true;
+}
+
+void chronosRingerCallback(String caller, bool state) {
+  if (!state) {
+    callAlertActive = false;
+    callAlertEnded = true;
+    callMelodyPlaysLeft = 0;
+    callMelodySequenceActive = false;
+    callMelodyToneActive = false;
+    soundManager.stopMelody();
+    return;
+  }
+  latestNotification = caller.isEmpty() ? "Incoming call" : "Call: " + caller;
+  callMelodyPlaysLeft = kCallMelodyPlays;
+  nextCallMelodyAtMs = millis();
+  callMelodySequenceActive = true;
+  callMelodyToneActive = false;
+  callAlertActive = true;
+  latestNotificationIsCall = true;
+  hasNotification = true;
+}
+
+void updateCallMelody(unsigned long now) {
+  if (!callMelodySequenceActive) {
+    return;
+  }
+
+  const bool melodyActive = soundManager.isMelodyActive();
+  if (callMelodyToneActive && !melodyActive) {
+    callMelodyToneActive = false;
+    nextCallMelodyAtMs = now + kCallMelodyGapMs;
+    if (callMelodyPlaysLeft == 0) {
+      callMelodySequenceActive = false;
+    }
+  }
+
+  if (!melodyActive && !callMelodyToneActive && callMelodyPlaysLeft > 0 && now >= nextCallMelodyAtMs) {
+    soundManager.startMelody(kCallMelody);
+    callMelodyPlaysLeft--;
+    callMelodyToneActive = true;
+  }
+}
 
 String uptimeString() {
   const unsigned long totalSeconds = millis() / 1000;
@@ -144,7 +216,7 @@ void drawClock() {
       code,
       isNightTime(),
       wifiPortal.isWifiConnected(),
-      bleNotifier.isConnected());
+      watch.isConnected());
 }
 
 void enterAnimationMode(int playlistIndex) {
@@ -172,7 +244,7 @@ void startNetworking() {
   }
 
   wifiPortal.begin();
-  if (wifiPortal.isApMode()) {
+  if (wifiPortal.isApMode() && !wifiPortal.isWifiConnected()) {
     screenMode = ScreenMode::Portal;
     ui.showPortalScreen("shaws.systems", wifiPortal.localIp());
   }
@@ -181,7 +253,14 @@ void startNetworking() {
   timeService.setTimezone("IST-5:30");
   timeService.begin(wifiPortal.isWifiConnected());
   weatherService.begin(wifiPortal.city());
-  bleNotifier.begin();
+  watch.setConnectionCallback(chronosConnectionCallback);
+  watch.setNotificationCallback(chronosNotificationCallback);
+  watch.setRingerCallback(chronosRingerCallback);
+  watch.begin();
+  watch.setBattery(80);
+  watch.set24Hour(true);
+  Serial.print("Chronos: address ");
+  Serial.println(watch.getAddress());
   networkStarted = true;
 }
 
@@ -203,7 +282,7 @@ void setup() {
   display.display();
 
   ui.showStartupScreen();
-  delay(2000);
+  delay(3000);
   ui.showCertificationScreen();
   delay(1000);
 
@@ -228,7 +307,9 @@ void setup() {
 void loop() {
   const unsigned long now = millis();
   soundManager.updateMelody();
+  updateCallMelody(now);
   if (networkStarted) {
+    watch.loop();
     wifiPortal.handle();
     timeService.trySync(wifiPortal.isWifiConnected());
     weatherService.setCity(wifiPortal.city());
@@ -236,7 +317,10 @@ void loop() {
   }
 
   touchInput.update();
-  if (touchInput.wasTapped()) {
+  const bool notificationLocked = (screenMode == ScreenMode::Notification) &&
+    (callAlertActive || now < notificationUntilMs);
+
+  if (touchInput.wasTapped() && !notificationLocked) {
     registerInteraction(now);
     if (screenMode == ScreenMode::Clock) {
       enterRandomAnimation();
@@ -246,7 +330,8 @@ void loop() {
     }
   }
 
-  if (touchInput.isPressed() && !longPressHandled && touchInput.pressedMs() >= kLongPressMs) {
+  if (!notificationLocked && touchInput.isPressed() && !longPressHandled &&
+      touchInput.pressedMs() >= kLongPressMs) {
     longPressHandled = true;
     registerInteraction(now);
     screenMode = ScreenMode::Portal;
@@ -257,12 +342,25 @@ void loop() {
     longPressHandled = false;
   }
 
-  if (bleNotifier.hasNewNotification()) {
-    const String message = bleNotifier.takeLatestNotification();
-    ui.showNotificationScreen(message);
+  if (hasNotification) {
+    const String message = latestNotification;
+    hasNotification = false;
+    ui.showNotificationScreen(message, latestNotificationIsCall);
     screenMode = ScreenMode::Notification;
-    notificationUntilMs = now + kNotificationDisplayMs;
+    if (latestNotificationIsCall) {
+      notificationUntilMs = 0;
+    } else {
+      notificationUntilMs = now + kNotificationDisplayMs;
+    }
     registerInteraction(now);
+  }
+
+  if (callAlertEnded) {
+    callAlertEnded = false;
+    if (screenMode == ScreenMode::Notification && latestNotificationIsCall && !callAlertActive) {
+      screenMode = ScreenMode::Clock;
+      drawClock();
+    }
   }
 
   switch (screenMode) {
@@ -286,13 +384,18 @@ void loop() {
       break;
 
     case ScreenMode::Notification:
-      if (now >= notificationUntilMs) {
+      if (!callAlertActive && now >= notificationUntilMs) {
         screenMode = ScreenMode::Clock;
         drawClock();
       }
       break;
 
     case ScreenMode::Portal:
+      if (wifiPortal.isWifiConnected()) {
+        screenMode = ScreenMode::Clock;
+        drawClock();
+        break;
+      }
       if (now - lastInteractionMs >= kIdleToFirstAnimationMs) {
         screenMode = ScreenMode::Clock;
         drawClock();

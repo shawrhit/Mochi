@@ -136,6 +136,21 @@ void SoundManager::startMelody(const char* melody) {
   melodyActive_ = (melody_ != nullptr);
 }
 
+void SoundManager::stopMelody() {
+  melody_ = nullptr;
+  melodyCursor_ = nullptr;
+  stage_ = 0;
+  tokenIndex_ = 0;
+  durationMs_ = 0;
+  restMs_ = 0;
+  frequency_ = 0;
+  nextAtMs_ = 0;
+  melodyActive_ = false;
+  if (buzzerPin_ >= 0) {
+    noTone(buzzerPin_);
+  }
+}
+
 bool SoundManager::nextToken() {
   if (melodyCursor_ == nullptr) {
     return false;
@@ -220,7 +235,5 @@ void SoundManager::playTouchMelody() const {
 }
 
 void SoundManager::playNotificationMelody() const {
-  toneFor(740, 90);
-  toneFor(740, 90);
-  toneFor(988, 140);
+  playMelody("G6 50 10, B6 100 10");
 }

@@ -21,6 +21,7 @@ constexpr char kPortalPass[] = "shawsetup";
 constexpr char kFallbackSsid[] = "5G Lab-2.4G";
 constexpr char kFallbackPass[] = "penance@007";
 constexpr int kPortalChannel = 1;
+constexpr unsigned long kApRetryIntervalMs = 300000;
 
 const char kPortalPage[] PROGMEM = R"HTML(
 <!doctype html>
@@ -63,7 +64,7 @@ const char kPortalPage[] PROGMEM = R"HTML(
 )HTML";
 }  // namespace
 
-WifiPortal::WifiPortal() : apMode_(false), apStartTime_(0) {}
+WifiPortal::WifiPortal() : apMode_(false), apStartTime_(0), lastRetryMs_(0) {}
 
 bool WifiPortal::tryConnectSaved() {
   prefs.begin(kPrefsNs, false);
@@ -164,6 +165,8 @@ void WifiPortal::startPortalAp() {
   Serial.println(apOk ? "WiFi AP: started" : "WiFi AP: failed to start");
   setupPortalRoutes();
   apMode_ = true;
+  apStartTime_ = millis();
+  lastRetryMs_ = apStartTime_;
 }
 
 void WifiPortal::begin() {
@@ -185,18 +188,24 @@ void WifiPortal::handle() {
   if (apMode_) {
     dnsServer.processNextRequest();
     server.handleClient();
+    const unsigned long now = millis();
+    if (WiFi.softAPgetStationNum() > 0) {
+      lastRetryMs_ = now;
+      return;
+    }
 
-    // Timeout logic: if AP is running for > 3 minutes (180000ms)
-    // and no one is connected, flush wifi and restart to try again.
-    if (millis() - apStartTime_ > 180000) {
-      if (WiFi.softAPgetStationNum() == 0) {
-        Serial.println("WiFi: AP timeout with no connections. Resetting to retry...");
-        WiFi.disconnect(true, true);
-        delay(500);
-        ESP.restart();
+    if (now - lastRetryMs_ >= kApRetryIntervalMs) {
+      Serial.println("WiFi: AP retry window. Trying STA connect...");
+      lastRetryMs_ = now;
+      WiFi.softAPdisconnect(true);
+      WiFi.mode(WIFI_OFF);
+      delay(200);
+      if (tryConnectSaved()) {
+        apMode_ = false;
+        Serial.println("WiFi: STA connected. AP stopped.");
       } else {
-        // Someone is connected, extend the timeout
-        apStartTime_ = millis();
+        Serial.println("WiFi: STA retry failed. Restarting AP.");
+        startPortalAp();
       }
     }
   }

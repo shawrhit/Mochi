@@ -21,7 +21,7 @@ class UiRenderer {
       bool isNight,
       bool wifiOk,
       bool bleOk);
-  void showNotificationScreen(const String& text);
+  void showNotificationScreen(const String& text, bool isCall);
 
  private:
   Adafruit_SSD1306& display_;
