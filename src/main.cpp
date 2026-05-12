@@ -32,7 +32,7 @@ constexpr unsigned long kLongPressMs = 1200;
 constexpr unsigned long kBootTouchWindowMs = 3500;
 
 const char kGreetingMelody[] =
-  "G4 200 40, C5 200 40, E5 200 40, G5 200 40, C6 200 40, D6 200 40, E6 400 400";
+  "G4 200 20, C5 200 20, E5 200 20, G5 200 20, C6 200 20, D6 200 20, E6 400 200";
 
 AnimationPlayer animationPlayer(display);
 UiRenderer ui(display);
@@ -56,6 +56,7 @@ unsigned long lastInteractionMs = 0;
 unsigned long nextAnimationAtMs = 0;
 unsigned long notificationUntilMs = 0;
 bool longPressHandled = false;
+bool networkStarted = false;
 
 String uptimeString() {
   const unsigned long totalSeconds = millis() / 1000;
@@ -119,10 +120,7 @@ void drawClock() {
   const String windText = windKph >= 0 ? String(windKph) + " km/h" : String("-- km/h");
   const String humidityText = humidity >= 0 ? String(humidity) + "%" : String("--%");
 
-  String ampm = " AM";
-  if (timeService.isSynced()) {
-    ampm = timeService.hour24() >= 12 ? " PM" : " AM";
-  }
+  const String ampm = "";
 
   String weatherDesc = "Sunny";
   int code = weatherService.weatherCode();
@@ -168,6 +166,25 @@ void registerInteraction(unsigned long now) {
   nextAnimationAtMs = now + random(kMinIdleToAnimationMs, kMaxIdleToAnimationMs);
 }
 
+void startNetworking() {
+  if (networkStarted) {
+    return;
+  }
+
+  wifiPortal.begin();
+  if (wifiPortal.isApMode()) {
+    screenMode = ScreenMode::Portal;
+    ui.showPortalScreen("shaws.systems", wifiPortal.localIp());
+  }
+  Serial.print("WiFi: status ");
+  Serial.println(wifiPortal.isWifiConnected() ? "connected" : "not connected");
+  timeService.setTimezone("IST-5:30");
+  timeService.begin(wifiPortal.isWifiConnected());
+  weatherService.begin(wifiPortal.city());
+  bleNotifier.begin();
+  networkStarted = true;
+}
+
 void setup() {
   delay(1000);
   Serial.begin(115200);
@@ -185,6 +202,11 @@ void setup() {
   display.clearDisplay();
   display.display();
 
+  ui.showStartupScreen();
+  delay(2000);
+  ui.showCertificationScreen();
+  delay(1000);
+
   touchInput.begin(kTouchPin);
   const unsigned long bootStart = millis();
   while (millis() - bootStart < kBootTouchWindowMs) {
@@ -196,18 +218,6 @@ void setup() {
     delay(10);
   }
 
-  wifiPortal.begin();
-  if (wifiPortal.isApMode()) {
-    screenMode = ScreenMode::Portal;
-    ui.showPortalScreen("shaws.systems", wifiPortal.localIp());
-  }
-  Serial.print("WiFi: status ");
-  Serial.println(wifiPortal.isWifiConnected() ? "connected" : "not connected");
-  timeService.setTimezone("IST-5:30");
-  timeService.begin(wifiPortal.isWifiConnected());
-  weatherService.begin(wifiPortal.city());
-  bleNotifier.begin();
-
   soundManager.begin(kBuzzerPin);
   soundManager.startMelody(kGreetingMelody);
   enterAnimationMode(kGreetingAnimationIndex);
@@ -218,10 +228,12 @@ void setup() {
 void loop() {
   const unsigned long now = millis();
   soundManager.updateMelody();
-  wifiPortal.handle();
-  timeService.trySync(wifiPortal.isWifiConnected());
-  weatherService.setCity(wifiPortal.city());
-  weatherService.update(wifiPortal.isWifiConnected());
+  if (networkStarted) {
+    wifiPortal.handle();
+    timeService.trySync(wifiPortal.isWifiConnected());
+    weatherService.setCity(wifiPortal.city());
+    weatherService.update(wifiPortal.isWifiConnected());
+  }
 
   touchInput.update();
   if (touchInput.wasTapped()) {
@@ -259,6 +271,7 @@ void loop() {
         screenMode = ScreenMode::Clock;
         drawClock();
         nextAnimationAtMs = now + random(kMinIdleToAnimationMs, kMaxIdleToAnimationMs);
+        startNetworking();
       }
       break;
 

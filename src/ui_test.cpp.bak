@@ -1,0 +1,77 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include "ui_renderer.h"
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+#define OLED_RESET     -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+UiRenderer ui(display);
+
+struct ClockDemo {
+  const char* label;
+  int weatherCode;
+  bool isNight;
+};
+
+constexpr ClockDemo kDemos[] = {
+    {"Sunny", 0, false},
+    {"Cloudy", 2, false},
+    {"Fog", 45, false},
+    {"Rain", 61, false},
+    {"Showers", 80, false},
+    {"Storm", 95, false},
+    {"Sleepy", 0, true},
+};
+
+constexpr unsigned long kDemoHoldMs = 2000;
+size_t demoIndex = 0;
+unsigned long lastSwapMs = 0;
+
+void drawDemo(const ClockDemo& demo) {
+  const String timeText = "12:45";
+  const String dateText = "Tue, 11 May";
+  const String weatherText = String("24C ") + " " + demo.label;
+  const String cityText = "Shillong";
+  const String ampmText = " PM";
+
+  ui.showClockScreen(
+      timeText,
+      dateText,
+      weatherText,
+      cityText,
+      ampmText,
+      demo.weatherCode,
+      demo.isNight,
+      true,
+      true);
+}
+
+void setup() {
+  delay(500);
+  Serial.begin(115200);
+  Wire.begin(21, 20);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("OLED failed to initialize! Check wiring."));
+    for (;;) {}
+  }
+
+  display.clearDisplay();
+  display.display();
+
+  drawDemo(kDemos[demoIndex]);
+  lastSwapMs = millis();
+}
+
+void loop() {
+  const unsigned long now = millis();
+  if (now - lastSwapMs >= kDemoHoldMs) {
+    demoIndex = (demoIndex + 1) % (sizeof(kDemos) / sizeof(kDemos[0]));
+    drawDemo(kDemos[demoIndex]);
+    lastSwapMs = now;
+  }
+}

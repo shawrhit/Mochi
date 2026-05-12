@@ -8,6 +8,8 @@ class UiRenderer {
   explicit UiRenderer(Adafruit_SSD1306& display);
 
   void showBootBrand();
+  void showStartupScreen();
+  void showCertificationScreen();
   void showPortalScreen(const String& apName, const String& ip);
     void showClockScreen(
       const String& timeText,
