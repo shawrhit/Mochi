@@ -1,3 +1,5 @@
+// animation_player.cpp — Frame-by-frame OLED bitmap animation player.
+
 #include "animation_player.h"
 
 #include <Arduino.h>

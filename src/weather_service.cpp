@@ -1,3 +1,5 @@
+// weather_service.cpp — Open-Meteo weather data fetcher with geocoding.
+
 #include "weather_service.h"
 
 #include <Arduino.h>
@@ -11,10 +13,10 @@ constexpr unsigned long kWeatherRefreshMs = 10UL * 60UL * 1000UL;
 WeatherService::WeatherService()
     : city_("Shillong"),
       display_("--C --"),
-  tempC_(-1),
-  windKph_(-1),
-  humidityPercent_(-1),
-  weatherCode_(-1),
+      tempC_(-1),
+      windKph_(-1),
+      humidityPercent_(-1),
+      weatherCode_(-1),
       latitude_(0.0f),
       longitude_(0.0f),
       hasLocation_(false),

@@ -1,10 +1,15 @@
+// main.cpp — Mochi firmware entry point and state machine.
+// Handles boot sequence, screen transitions, touch input, notifications,
+// weather updates, and settings management.
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <ChronosESP32.h>
+
 #include "animation_catalog.h"
 #include "animation_player.h"
-#include <ChronosESP32.h>
 #include "sound_manager.h"
 #include "time_service.h"
 #include "touch_input.h"
@@ -12,18 +17,19 @@
 #include "weather_service.h"
 #include "wifi_portal.h"
 
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
+constexpr int kScreenWidth = 128;
+constexpr int kScreenHeight = 64;
+constexpr int kOledReset = -1;
 
-#define OLED_RESET     -1
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+Adafruit_SSD1306 display(kScreenWidth, kScreenHeight, &Wire, kOledReset);
 
 constexpr int kBuzzerPin = 2;
 constexpr int kTouchPin = 10;
-constexpr int kAnimationFrameDelayMs = 200;  // 5 fps
-constexpr int kGreetingAnimationIndex = 5;  // greeting
+constexpr int kAnimationFrameDelayMs = 200;
+constexpr int kGreetingAnimationIndex = 5;
 constexpr unsigned long kBootHoldMs = 2000;
 constexpr unsigned long kClockRefreshMs = 500;
+constexpr unsigned long kNowPlayingRefreshMs = 50;
 constexpr unsigned long kIdleToFirstAnimationMs = 10000;
 constexpr unsigned long kMinIdleToAnimationMs = 10000;
 constexpr unsigned long kMaxIdleToAnimationMs = 30000;
@@ -32,6 +38,7 @@ constexpr unsigned long kNowPlayingDisplayMs = 5000;
 constexpr unsigned long kCallMelodyGapMs = 1000;
 constexpr unsigned long kLongPressMs = 2000;
 constexpr unsigned long kBootTouchWindowMs = 3500;
+constexpr int kSettingsMenuCount = 4;
 
 const char kGreetingMelody[] =
   "G4 200 20, C5 200 20, E5 200 20, G5 200 20, C6 200 20, D6 200 20, E6 400 200";
@@ -201,13 +208,6 @@ String activeTimeString() {
   return uptimeString();
 }
 
-String activeDateString() {
-  if (timeService.isSynced()) {
-    return timeService.dateString();
-  }
-  return "Syncing";
-}
-
 String activeDayString() {
   if (timeService.isSynced()) {
     return timeService.dayString();
@@ -220,13 +220,6 @@ String activeDateShortString() {
     return timeService.dateShortString();
   }
   return "-- ---";
-}
-
-String activeYearString() {
-  if (timeService.isSynced()) {
-    return timeService.yearString();
-  }
-  return "----";
 }
 
 bool isNightTime() {
@@ -246,11 +239,7 @@ String activeAmpmString() {
 
 void drawClock() {
   const int tempC = weatherService.temperatureC();
-  const int windKph = weatherService.windKph();
-  const int humidity = weatherService.humidityPercent();
   const String tempText = tempC >= 0 ? String(tempC) + "C" : String("--C");
-  const String windText = windKph >= 0 ? String(windKph) + " km/h" : String("-- km/h");
-  const String humidityText = humidity >= 0 ? String(humidity) + "%" : String("--%");
 
   const String ampm = activeAmpmString();
 
@@ -407,7 +396,7 @@ void loop() {
       screenMode = ScreenMode::Clock;
       drawClock();
     } else if (screenMode == ScreenMode::Settings) {
-      settingsIndex = (settingsIndex + 1) % 4;
+      settingsIndex = (settingsIndex + 1) % kSettingsMenuCount;
       showSettings();
     } else {
       screenMode = ScreenMode::Clock;
@@ -516,7 +505,7 @@ void loop() {
       break;
 
     case ScreenMode::NowPlaying:
-      if (now - lastNowPlayingDraw >= 50) {
+      if (now - lastNowPlayingDraw >= kNowPlayingRefreshMs) {
         lastNowPlayingDraw = now;
         showNowPlaying();
       }

@@ -1,24 +1,25 @@
+// ui_renderer.cpp — OLED screen rendering for all Mochi UI states.
+// Handles clock, notifications, now-playing (with marquee scroll),
+// settings menu, startup, certification, and WiFi portal screens.
+
 #include "ui_renderer.h"
-#include "Picopixel.h"
+
 #include "FreeSerif9pt7b.h"
-#include "FreeSerifItalic9pt7b.h"
 #include "FreeSerifItalic4pt7b.h"
 #include "FreeSerifItalic5pt7b.h"
+#include "FreeSerifItalic9pt7b.h"
+#include "Picopixel.h"
 #include "lopaka_assets.h"
 #include "ui_assets.h"
 
-//Agent STOP resetting the font, ALL are same font! 
+namespace {
+constexpr int kSettingsMenuCount = 4;
+constexpr int kMarqueeMaxWidth = 100;
+constexpr int kMarqueeGap = 40;
+constexpr int kMarqueeSpeed = 100;
+}  // namespace
 
 UiRenderer::UiRenderer(Adafruit_SSD1306& display) : display_(display) {}
-
-void UiRenderer::showBootBrand() {
-  display_.clearDisplay();
-  display_.setTextSize(2);
-  display_.setTextColor(SSD1306_WHITE);
-  display_.setCursor(10, 20);
-  display_.print("shaws.systems");
-  display_.display();
-}
 
 void UiRenderer::showStartupScreen() {
   display_.clearDisplay();
@@ -276,7 +277,7 @@ void UiRenderer::showNowPlayingScreen(
   // Icons
   display_.drawBitmap(1, 2, image_Music_bits, 7, 8, 1);
 
-  const int maxTextWidth = 100;
+  const int maxTextWidth = kMarqueeMaxWidth;
   
   // Title (Scrolling 5pt font)
   display_.setFont(&FreeSerifItalic5pt7b);
@@ -289,12 +290,12 @@ void UiRenderer::showNowPlayingScreen(
     display_.setCursor((128 - w) / 2, 41);
     display_.print(title);
   } else {
-    int offset = (now / 100) % (w + 40);
+    int offset = (now / kMarqueeSpeed) % (w + kMarqueeGap);
     int x_pos = 12 - offset;
     display_.setCursor(x_pos, 41);
     display_.print(title);
     if (x_pos + (int)w < 128) {
-      display_.setCursor(x_pos + w + 40, 41);
+      display_.setCursor(x_pos + w + kMarqueeGap, 41);
       display_.print(title);
     }
   }
@@ -307,12 +308,12 @@ void UiRenderer::showNowPlayingScreen(
     display_.setCursor((128 - w) / 2, 49);
     display_.print(artist);
   } else {
-    int offset = (now / 100) % (w + 40);
+    int offset = (now / kMarqueeSpeed) % (w + kMarqueeGap);
     int x_pos = 12 - offset;
     display_.setCursor(x_pos, 49);
     display_.print(artist);
     if (x_pos + (int)w < 128) {
-      display_.setCursor(x_pos + w + 40, 49);
+      display_.setCursor(x_pos + w + kMarqueeGap, 49);
       display_.print(artist);
     }
   }
@@ -348,7 +349,7 @@ void UiRenderer::showSettingsScreen(int selectedIndex, bool isMuted, bool is24H)
   int startY = 18;
   int itemHeight = 11; 
   
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < kSettingsMenuCount; i++) {
     int y = startY + i * itemHeight;
     if (i == selectedIndex) {
       display_.fillRect(0, y - 1, 128, itemHeight, SSD1306_WHITE);

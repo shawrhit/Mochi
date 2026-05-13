@@ -1,3 +1,5 @@
+// ui_renderer.h — Screen rendering interface for all Mochi UI states.
+
 #pragma once
 
 #include <Adafruit_SSD1306.h>
@@ -7,7 +9,6 @@ class UiRenderer {
  public:
   explicit UiRenderer(Adafruit_SSD1306& display);
 
-  void showBootBrand();
   void showStartupScreen();
   void showCertificationScreen();
   void showPortalScreen(const String& apName, const String& ip);

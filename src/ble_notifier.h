@@ -1,3 +1,5 @@
+// ble_notifier.h — BLE GATT server for receiving text notifications.
+
 #pragma once
 
 #include <WString.h>

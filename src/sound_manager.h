@@ -1,3 +1,5 @@
+// sound_manager.h — Non-blocking melody player for piezo buzzer.
+
 #pragma once
 
 class SoundManager {
@@ -5,10 +7,6 @@ class SoundManager {
   SoundManager();
 
   void begin(int buzzerPin);
-  void playStartupMelody() const;
-  void playTouchMelody() const;
-  void playNotificationMelody() const;
-  void playMelody(const char* melody) const;
   void startMelody(const char* melody);
   void stopMelody();
   bool updateMelody();
@@ -27,7 +25,6 @@ class SoundManager {
   unsigned long nextAtMs_;
   bool melodyActive_;
 
-  void toneFor(int frequencyHz, int durationMs) const;
   int noteToFrequency(const char* note) const;
   bool nextToken();
 };

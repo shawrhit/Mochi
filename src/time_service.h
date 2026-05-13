@@ -1,3 +1,5 @@
+// time_service.h — HTTP-based time sync with 12/24-hour format support.
+
 #pragma once
 
 #include <WString.h>

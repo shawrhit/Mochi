@@ -1,3 +1,5 @@
+// animation_catalog.cpp — Animation playlist registry.
+
 #include "animation_catalog.h"
 #include "custom_animations.h"
 

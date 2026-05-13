@@ -1,3 +1,6 @@
+// wifi_portal.cpp — Captive portal for WiFi configuration and AP fallback.
+// Manages saved credentials, AP mode with DNS redirect, and periodic STA retry.
+
 #include "wifi_portal.h"
 
 #include <Arduino.h>

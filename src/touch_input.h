@@ -1,3 +1,5 @@
+// touch_input.h — Debounced single-button capacitive touch input.
+
 #pragma once
 
 class TouchInput {

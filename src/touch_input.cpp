@@ -1,17 +1,20 @@
+// touch_input.cpp — Debounced single-button capacitive touch input.
+// Short tap: release within 2 seconds. Long press: hold >= 2 seconds.
+
 #include "touch_input.h"
 #include <Arduino.h>
 
 TouchInput::TouchInput()
     : pin_(-1),
-      currentState_(HIGH),
-      lastState_(HIGH),
+      currentState_(LOW),
+      lastState_(LOW),
       lastDebounceTime_(0),
       pressStartTime_(0),
       tapped_(false) {}
 
 void TouchInput::begin(int pin) {
   pin_ = pin;
-  pinMode(pin_, INPUT_PULLUP);
+  pinMode(pin_, INPUT);
   currentState_ = digitalRead(pin_);
   lastState_ = currentState_;
   lastDebounceTime_ = millis();
@@ -33,7 +36,7 @@ void TouchInput::update() {
     if (reading != currentState_) {
       currentState_ = reading;
 
-      if (currentState_ == LOW) {
+      if (currentState_ == HIGH) {
         pressStartTime_ = now;
         tapped_ = false;
       } else {
@@ -60,11 +63,11 @@ bool TouchInput::wasTapped() {
 }
 
 bool TouchInput::isPressed() const {
-  return currentState_ == LOW;
+  return currentState_ == HIGH;
 }
 
 unsigned long TouchInput::pressedMs() const {
-  if (currentState_ != LOW || pressStartTime_ == 0) {
+  if (currentState_ != HIGH || pressStartTime_ == 0) {
     return 0;
   }
   return millis() - pressStartTime_;

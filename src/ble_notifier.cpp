@@ -1,3 +1,5 @@
+// ble_notifier.cpp — BLE GATT server for receiving text notifications.
+
 #include "ble_notifier.h"
 
 #include <BLEDevice.h>

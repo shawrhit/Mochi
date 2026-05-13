@@ -1,3 +1,5 @@
+// animation_player.h — Frame-by-frame OLED bitmap animation player.
+
 #pragma once
 
 #include <Adafruit_SSD1306.h>

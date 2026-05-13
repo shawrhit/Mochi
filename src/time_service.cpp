@@ -1,3 +1,5 @@
+// time_service.cpp — HTTP-based time sync with 12/24-hour format support.
+
 #include "time_service.h"
 
 #include <Arduino.h>

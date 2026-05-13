@@ -1,3 +1,5 @@
+// weather_service.h — Open-Meteo weather data fetcher with geocoding.
+
 #pragma once
 
 #include <WString.h>
