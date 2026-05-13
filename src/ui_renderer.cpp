@@ -1,6 +1,9 @@
 #include "ui_renderer.h"
 #include "Picopixel.h"
 #include "FreeSerif9pt7b.h"
+#include "FreeSerifItalic9pt7b.h"
+#include "FreeSerifItalic4pt7b.h"
+#include "FreeSerifItalic5pt7b.h"
 #include "lopaka_assets.h"
 #include "ui_assets.h"
 
@@ -64,9 +67,88 @@ void UiRenderer::showNotificationScreen(const String& text, bool isCall) {
 
   display_.setFont();
   display_.setTextSize(1);
-  display_.setTextWrap(true);
-  display_.setCursor(8, 31);
-  display_.print(text);
+  display_.setTextWrap(false);
+  
+  const int maxLineWidth = 112; 
+  String line1 = "";
+  String line2 = "";
+  int lineIdx = 1;
+  bool truncated = false;
+  
+  int lastSpaceIdx = -1;
+  String currentLineStr = "";
+  
+  for (int i = 0; i < (int)text.length(); i++) {
+    char c = text[i];
+    
+    if (c == '\n') {
+       if (lineIdx == 1) {
+         line1 = currentLineStr;
+         currentLineStr = "";
+         lineIdx = 2;
+         lastSpaceIdx = -1;
+       } else {
+         truncated = true;
+         break;
+       }
+       continue;
+    }
+    
+    currentLineStr += c;
+    if (c == ' ') lastSpaceIdx = currentLineStr.length() - 1;
+    
+    int16_t x1, y1;
+    uint16_t w, h;
+    display_.getTextBounds(currentLineStr, 0, 0, &x1, &y1, &w, &h);
+    
+    if (w > maxLineWidth) {
+      if (lineIdx == 1) {
+         if (lastSpaceIdx != -1 && lastSpaceIdx > 0) {
+           line1 = currentLineStr.substring(0, lastSpaceIdx);
+           currentLineStr = currentLineStr.substring(lastSpaceIdx + 1);
+         } else {
+           line1 = currentLineStr.substring(0, currentLineStr.length() - 1);
+           currentLineStr = String(c);
+         }
+         lineIdx = 2;
+         lastSpaceIdx = -1;
+         
+         display_.getTextBounds(currentLineStr, 0, 0, &x1, &y1, &w, &h);
+         if (w > maxLineWidth) {
+           truncated = true;
+           break;
+         }
+      } else {
+         currentLineStr.remove(currentLineStr.length() - 1);
+         truncated = true;
+         break;
+      }
+    }
+  }
+  
+  if (lineIdx == 1) {
+    line1 = currentLineStr;
+  } else {
+    line2 = currentLineStr;
+  }
+  
+  if (truncated) {
+    int16_t x1, y1;
+    uint16_t w, h;
+    while (line2.length() > 0) {
+      display_.getTextBounds(line2 + "..", 0, 0, &x1, &y1, &w, &h);
+      if (w <= maxLineWidth) break;
+      line2.remove(line2.length() - 1);
+    }
+    line2 += "..";
+  }
+
+  display_.setCursor(8, 30);
+  display_.print(line1);
+  if (line2.length() > 0) {
+    display_.setCursor(8, 40);
+    display_.print(line2);
+  }
 
   if (isCall) {
     display_.drawBitmap(2, 2, image_phone_call_in_out_bits, 15, 16, 1);
@@ -152,6 +234,74 @@ void UiRenderer::showClockScreen(
 
   // line 13
   display_.drawLine(28, 47, 28, 51, 1);
+
+  display_.display();
+}
+
+void UiRenderer::showNowPlayingScreen(
+    const String& title,
+    const String& artist,
+    const String& appName,
+    const String& timeText) {
+  display_.clearDisplay();
+  display_.setTextColor(SSD1306_WHITE);
+  display_.setTextWrap(false);
+
+  // Buttons
+  display_.drawBitmap(74, 52, image_ButtonRight_bits, 4, 7, 1);
+  display_.drawBitmap(53, 52, image_ButtonLeft_bits, 4, 7, 1);
+  display_.fillCircle(65, 55, 4, 1);
+  display_.drawLine(64, 53, 64, 57, 0);
+  display_.drawLine(66, 53, 66, 57, 0);
+
+  // Rectangle
+  display_.fillRect(45, 9, 39, 23, 1);
+  display_.drawBitmap(55, 13, image_Lines_bits, 19, 15, 0);
+
+  // Time
+  display_.setFont(&Picopixel);
+  display_.setCursor(109, 6);
+  display_.print(timeText);
+
+  // Icons
+  display_.drawBitmap(1, 2, image_Music_bits, 7, 8, 1);
+  display_.drawBitmap(110, 43, image_Waves_bits, 18, 21, 1);
+
+  // Title (Centered, 5pt font)
+  display_.setFont(&FreeSerifItalic5pt7b);
+  display_.setTextSize(1);
+  int16_t x1, y1;
+  uint16_t w, h;
+  display_.getTextBounds(title, 0, 0, &x1, &y1, &w, &h);
+  display_.setCursor((128 - w) / 2, 41);
+  display_.print(title);
+
+  // Artist (Centered, 4pt font)
+  display_.setFont(&FreeSerifItalic4pt7b);
+  display_.getTextBounds(artist, 0, 0, &x1, &y1, &w, &h);
+  display_.setCursor((128 - w) / 2, 49);
+  display_.print(artist);
+
+  display_.display();
+}
+
+void UiRenderer::showSettingsScreen(int selectedIndex) {
+  display_.clearDisplay();
+  display_.setTextColor(SSD1306_WHITE);
+  display_.setTextWrap(false);
+  display_.setTextSize(1);
+
+  display_.setCursor(0, 10);
+  display_.print("Settings");
+
+  display_.setCursor(0, 24);
+  display_.print(selectedIndex == 0 ? "> Clock" : "  Clock");
+
+  display_.setCursor(0, 36);
+  display_.print(selectedIndex == 1 ? "> Sound" : "  Sound");
+
+  display_.setCursor(0, 48);
+  display_.print(selectedIndex == 2 ? "> WiFi" : "  WiFi");
 
   display_.display();
 }

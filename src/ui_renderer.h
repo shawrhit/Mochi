@@ -11,7 +11,7 @@ class UiRenderer {
   void showStartupScreen();
   void showCertificationScreen();
   void showPortalScreen(const String& apName, const String& ip);
-    void showClockScreen(
+  void showClockScreen(
       const String& timeText,
       const String& dateText,
       const String& weatherText,
@@ -21,6 +21,12 @@ class UiRenderer {
       bool isNight,
       bool wifiOk,
       bool bleOk);
+  void showNowPlayingScreen(
+      const String& title,
+      const String& artist,
+      const String& appName,
+      const String& timeText);
+  void showSettingsScreen(int selectedIndex);
   void showNotificationScreen(const String& text, bool isCall);
 
  private:

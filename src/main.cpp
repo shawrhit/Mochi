@@ -28,6 +28,7 @@ constexpr unsigned long kIdleToFirstAnimationMs = 10000;
 constexpr unsigned long kMinIdleToAnimationMs = 10000;
 constexpr unsigned long kMaxIdleToAnimationMs = 30000;
 constexpr unsigned long kNotificationDisplayMs = 5000;
+constexpr unsigned long kNowPlayingDisplayMs = 5000;
 constexpr unsigned long kCallMelodyGapMs = 1000;
 constexpr unsigned long kLongPressMs = 1200;
 constexpr unsigned long kBootTouchWindowMs = 3500;
@@ -53,7 +54,9 @@ enum class ScreenMode {
   Animation,
   Clock,
   Notification,
-  Portal
+  Portal,
+  NowPlaying,
+  Settings
 };
 
 ScreenMode screenMode = ScreenMode::Animation;
@@ -61,11 +64,18 @@ unsigned long lastClockDraw = 0;
 unsigned long lastInteractionMs = 0;
 unsigned long nextAnimationAtMs = 0;
 unsigned long notificationUntilMs = 0;
+unsigned long nowPlayingUntilMs = 0;
 bool longPressHandled = false;
 bool networkStarted = false;
 bool hasNotification = false;
+bool hasNowPlaying = false;
 String latestNotification = "";
 bool latestNotificationIsCall = false;
+String nowPlayingTitle = "";
+String nowPlayingArtist = "";
+String nowPlayingApp = "";
+bool nowPlayingAutoHide = false;
+int settingsIndex = 0;
 int callMelodyPlaysLeft = 0;
 unsigned long nextCallMelodyAtMs = 0;
 bool callMelodySequenceActive = false;
@@ -79,6 +89,43 @@ void chronosConnectionCallback(bool state) {
 }
 
 void chronosNotificationCallback(Notification notification) {
+  Serial.print("Chronos notif app: ");
+  Serial.print(notification.app);
+  Serial.print(" | title: ");
+  Serial.print(notification.title);
+  Serial.print(" | message: ");
+  Serial.println(notification.message);
+
+  String app = notification.app;
+  app.toLowerCase();
+  const bool isMusicApp = app.indexOf("spotify") >= 0 || app.indexOf("yt music") >= 0 ||
+      app.indexOf("ytmusic") >= 0 || app.indexOf("youtube music") >= 0 ||
+      app.indexOf("viber") >= 0 || app.indexOf("kakaotalk") >= 0;
+
+  if (isMusicApp) {
+    const String title = notification.title;
+    const String message = notification.message;
+    if (title == "Message") {
+      const int splitIndex = message.indexOf(':');
+      if (splitIndex > 0) {
+        nowPlayingTitle = message.substring(splitIndex + 1);
+        nowPlayingTitle.trim();
+        nowPlayingArtist = message.substring(0, splitIndex);
+        nowPlayingArtist.trim();
+      } else {
+        nowPlayingTitle = message;
+        nowPlayingArtist = "";
+      }
+    } else {
+      nowPlayingTitle = title;
+      nowPlayingArtist = message;
+      nowPlayingArtist.trim();
+    }
+    nowPlayingApp = notification.app;
+    hasNowPlaying = true;
+    return;
+  }
+
   if (!notification.title.isEmpty()) {
     latestNotification = notification.title + ": " + notification.message;
   } else {
@@ -219,6 +266,21 @@ void drawClock() {
       watch.isConnected());
 }
 
+void showNowPlaying() {
+  const String title = nowPlayingTitle.isEmpty() ? "No music" : nowPlayingTitle;
+  const String artist = nowPlayingArtist;
+  const String appName = nowPlayingApp.isEmpty() ? "" : nowPlayingApp;
+  String timeText = activeTimeString();
+  if (timeText.length() > 5) {
+    timeText = timeText.substring(0, 5);
+  }
+  ui.showNowPlayingScreen(title, artist, appName, timeText);
+}
+
+void showSettings() {
+  ui.showSettingsScreen(settingsIndex);
+}
+
 void enterAnimationMode(int playlistIndex) {
   if (playlistIndex < 0 || playlistIndex >= kPlaylistCount) {
     return;
@@ -323,7 +385,15 @@ void loop() {
   if (touchInput.wasTapped() && !notificationLocked) {
     registerInteraction(now);
     if (screenMode == ScreenMode::Clock) {
-      enterRandomAnimation();
+      screenMode = ScreenMode::NowPlaying;
+      nowPlayingAutoHide = false;
+      showNowPlaying();
+    } else if (screenMode == ScreenMode::NowPlaying) {
+      screenMode = ScreenMode::Settings;
+      showSettings();
+    } else if (screenMode == ScreenMode::Settings) {
+      screenMode = ScreenMode::Clock;
+      drawClock();
     } else {
       screenMode = ScreenMode::Clock;
       drawClock();
@@ -352,6 +422,15 @@ void loop() {
     } else {
       notificationUntilMs = now + kNotificationDisplayMs;
     }
+    registerInteraction(now);
+  }
+
+  if (hasNowPlaying && !callAlertActive) {
+    hasNowPlaying = false;
+    showNowPlaying();
+    screenMode = ScreenMode::NowPlaying;
+    nowPlayingUntilMs = now + kNowPlayingDisplayMs;
+    nowPlayingAutoHide = true;
     registerInteraction(now);
   }
 
@@ -400,6 +479,16 @@ void loop() {
         screenMode = ScreenMode::Clock;
         drawClock();
       }
+      break;
+
+    case ScreenMode::NowPlaying:
+      if (nowPlayingAutoHide && now >= nowPlayingUntilMs) {
+        screenMode = ScreenMode::Clock;
+        drawClock();
+      }
+      break;
+
+    case ScreenMode::Settings:
       break;
   }
 }
