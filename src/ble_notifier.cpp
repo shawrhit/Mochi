@@ -8,7 +8,7 @@
 namespace {
 BleNotifier* gNotifier = nullptr;
 
-constexpr const char* kDeviceName = "shaws.systems";
+constexpr const char* kDeviceName = "Mochi";
 constexpr const char* kServiceUuid = "c3ad1001-8f37-46a1-9a3a-f4f10eec9001";
 constexpr const char* kTextCharUuid = "c3ad1002-8f37-46a1-9a3a-f4f10eec9001";
 

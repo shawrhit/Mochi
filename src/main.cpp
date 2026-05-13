@@ -30,7 +30,7 @@ constexpr unsigned long kMaxIdleToAnimationMs = 30000;
 constexpr unsigned long kNotificationDisplayMs = 5000;
 constexpr unsigned long kNowPlayingDisplayMs = 5000;
 constexpr unsigned long kCallMelodyGapMs = 1000;
-constexpr unsigned long kLongPressMs = 1200;
+constexpr unsigned long kLongPressMs = 2000;
 constexpr unsigned long kBootTouchWindowMs = 3500;
 
 const char kGreetingMelody[] =
@@ -47,7 +47,7 @@ SoundManager soundManager;
 WifiPortal wifiPortal;
 TimeService timeService;
 WeatherService weatherService;
-ChronosESP32 watch("shaws.systems");
+ChronosESP32 watch("Mochi");
 TouchInput touchInput;
 
 enum class ScreenMode {
@@ -61,6 +61,7 @@ enum class ScreenMode {
 
 ScreenMode screenMode = ScreenMode::Animation;
 unsigned long lastClockDraw = 0;
+unsigned long lastNowPlayingDraw = 0;
 unsigned long lastInteractionMs = 0;
 unsigned long nextAnimationAtMs = 0;
 unsigned long notificationUntilMs = 0;
@@ -76,6 +77,7 @@ String nowPlayingArtist = "";
 String nowPlayingApp = "";
 bool nowPlayingAutoHide = false;
 int settingsIndex = 0;
+bool isMuted = false;
 int callMelodyPlaysLeft = 0;
 unsigned long nextCallMelodyAtMs = 0;
 bool callMelodySequenceActive = false;
@@ -131,7 +133,9 @@ void chronosNotificationCallback(Notification notification) {
   } else {
     latestNotification = notification.message;
   }
-  soundManager.startMelody(kNotificationMelody);
+  if (!isMuted) {
+    soundManager.startMelody(kNotificationMelody);
+  }
   latestNotificationIsCall = false;
   hasNotification = true;
 }
@@ -171,7 +175,9 @@ void updateCallMelody(unsigned long now) {
   }
 
   if (!melodyActive && !callMelodyToneActive && callMelodyPlaysLeft > 0 && now >= nextCallMelodyAtMs) {
-    soundManager.startMelody(kCallMelody);
+    if (!isMuted) {
+      soundManager.startMelody(kCallMelody);
+    }
     callMelodyPlaysLeft--;
     callMelodyToneActive = true;
   }
@@ -231,6 +237,13 @@ bool isNightTime() {
   return hour < 6 || hour >= 22;
 }
 
+String activeAmpmString() {
+  if (timeService.isSynced()) {
+    return timeService.ampmString();
+  }
+  return "";
+}
+
 void drawClock() {
   const int tempC = weatherService.temperatureC();
   const int windKph = weatherService.windKph();
@@ -239,7 +252,7 @@ void drawClock() {
   const String windText = windKph >= 0 ? String(windKph) + " km/h" : String("-- km/h");
   const String humidityText = humidity >= 0 ? String(humidity) + "%" : String("--%");
 
-  const String ampm = "";
+  const String ampm = activeAmpmString();
 
   String weatherDesc = "Sunny";
   int code = weatherService.weatherCode();
@@ -274,11 +287,11 @@ void showNowPlaying() {
   if (timeText.length() > 5) {
     timeText = timeText.substring(0, 5);
   }
-  ui.showNowPlayingScreen(title, artist, appName, timeText);
+  ui.showNowPlayingScreen(title, artist, appName, timeText, millis());
 }
 
 void showSettings() {
-  ui.showSettingsScreen(settingsIndex);
+  ui.showSettingsScreen(settingsIndex, isMuted, timeService.is24Hour());
 }
 
 void enterAnimationMode(int playlistIndex) {
@@ -308,7 +321,7 @@ void startNetworking() {
   wifiPortal.begin();
   if (wifiPortal.isApMode() && !wifiPortal.isWifiConnected()) {
     screenMode = ScreenMode::Portal;
-    ui.showPortalScreen("shaws.systems", wifiPortal.localIp());
+    ui.showPortalScreen("Mochi", wifiPortal.localIp());
   }
   Serial.print("WiFi: status ");
   Serial.println(wifiPortal.isWifiConnected() ? "connected" : "not connected");
@@ -329,7 +342,7 @@ void startNetworking() {
 void setup() {
   delay(1000);
   Serial.begin(115200);
-  Serial.println("shaws.systems");
+  Serial.println("Mochi v1.2 by shaws.systems");
 
   delay(kBootHoldMs);
 
@@ -360,7 +373,9 @@ void setup() {
   }
 
   soundManager.begin(kBuzzerPin);
-  soundManager.startMelody(kGreetingMelody);
+  if (!isMuted) {
+    soundManager.startMelody(kGreetingMelody);
+  }
   enterAnimationMode(kGreetingAnimationIndex);
   lastInteractionMs = millis();
   nextAnimationAtMs = lastInteractionMs + kIdleToFirstAnimationMs;
@@ -389,11 +404,11 @@ void loop() {
       nowPlayingAutoHide = false;
       showNowPlaying();
     } else if (screenMode == ScreenMode::NowPlaying) {
-      screenMode = ScreenMode::Settings;
-      showSettings();
-    } else if (screenMode == ScreenMode::Settings) {
       screenMode = ScreenMode::Clock;
       drawClock();
+    } else if (screenMode == ScreenMode::Settings) {
+      settingsIndex = (settingsIndex + 1) % 4;
+      showSettings();
     } else {
       screenMode = ScreenMode::Clock;
       drawClock();
@@ -404,8 +419,27 @@ void loop() {
       touchInput.pressedMs() >= kLongPressMs) {
     longPressHandled = true;
     registerInteraction(now);
-    screenMode = ScreenMode::Portal;
-    ui.showPortalScreen("shaws.systems", wifiPortal.localIp());
+    
+    if (screenMode == ScreenMode::Settings) {
+      if (settingsIndex == 0) {
+        isMuted = !isMuted;
+        showSettings();
+      } else if (settingsIndex == 1) {
+        timeService.set24Hour(!timeService.is24Hour());
+        watch.set24Hour(timeService.is24Hour());
+        showSettings();
+      } else if (settingsIndex == 2) {
+        screenMode = ScreenMode::Portal;
+        ui.showPortalScreen("Mochi", wifiPortal.localIp());
+      } else if (settingsIndex == 3) {
+        screenMode = ScreenMode::Clock;
+        drawClock();
+      }
+    } else {
+      screenMode = ScreenMode::Settings;
+      settingsIndex = 0;
+      showSettings();
+    }
   }
 
   if (!touchInput.isPressed()) {
@@ -482,6 +516,10 @@ void loop() {
       break;
 
     case ScreenMode::NowPlaying:
+      if (now - lastNowPlayingDraw >= 50) {
+        lastNowPlayingDraw = now;
+        showNowPlaying();
+      }
       if (nowPlayingAutoHide && now >= nowPlayingUntilMs) {
         screenMode = ScreenMode::Clock;
         drawClock();

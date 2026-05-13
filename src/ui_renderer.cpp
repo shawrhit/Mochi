@@ -16,7 +16,7 @@ void UiRenderer::showBootBrand() {
   display_.setTextSize(2);
   display_.setTextColor(SSD1306_WHITE);
   display_.setCursor(10, 20);
-  display_.print("Mochi");
+  display_.print("shaws.systems");
   display_.display();
 }
 
@@ -175,11 +175,20 @@ void UiRenderer::showClockScreen(
 
   // Time
   display_.setTextColor(1);
-  display_.setTextSize(3);
   display_.setTextWrap(false);
   display_.setFont(&Picopixel);
+  display_.setTextSize(3);
   display_.setCursor(10, 30);
   display_.print(timeText);
+
+  if (!ampmText.isEmpty()) {
+    int16_t x1, y1;
+    uint16_t w, h;
+    display_.getTextBounds(timeText, 10, 30, &x1, &y1, &w, &h);
+    display_.setTextSize(1);
+    display_.setCursor(10 + w + 4, 30);
+    display_.print(ampmText);
+  }
 
   // Date
   display_.setTextSize(1);
@@ -242,7 +251,8 @@ void UiRenderer::showNowPlayingScreen(
     const String& title,
     const String& artist,
     const String& appName,
-    const String& timeText) {
+    const String& timeText,
+    unsigned long now) {
   display_.clearDisplay();
   display_.setTextColor(SSD1306_WHITE);
   display_.setTextWrap(false);
@@ -265,43 +275,90 @@ void UiRenderer::showNowPlayingScreen(
 
   // Icons
   display_.drawBitmap(1, 2, image_Music_bits, 7, 8, 1);
-  display_.drawBitmap(110, 43, image_Waves_bits, 18, 21, 1);
 
-  // Title (Centered, 5pt font)
+  const int maxTextWidth = 100;
+  
+  // Title (Scrolling 5pt font)
   display_.setFont(&FreeSerifItalic5pt7b);
   display_.setTextSize(1);
   int16_t x1, y1;
   uint16_t w, h;
   display_.getTextBounds(title, 0, 0, &x1, &y1, &w, &h);
-  display_.setCursor((128 - w) / 2, 41);
-  display_.print(title);
+  
+  if (w <= maxTextWidth) {
+    display_.setCursor((128 - w) / 2, 41);
+    display_.print(title);
+  } else {
+    int offset = (now / 100) % (w + 40);
+    int x_pos = 12 - offset;
+    display_.setCursor(x_pos, 41);
+    display_.print(title);
+    if (x_pos + (int)w < 128) {
+      display_.setCursor(x_pos + w + 40, 41);
+      display_.print(title);
+    }
+  }
 
-  // Artist (Centered, 4pt font)
+  // Artist (Scrolling 4pt font)
   display_.setFont(&FreeSerifItalic4pt7b);
   display_.getTextBounds(artist, 0, 0, &x1, &y1, &w, &h);
-  display_.setCursor((128 - w) / 2, 49);
-  display_.print(artist);
+  
+  if (w <= maxTextWidth) {
+    display_.setCursor((128 - w) / 2, 49);
+    display_.print(artist);
+  } else {
+    int offset = (now / 100) % (w + 40);
+    int x_pos = 12 - offset;
+    display_.setCursor(x_pos, 49);
+    display_.print(artist);
+    if (x_pos + (int)w < 128) {
+      display_.setCursor(x_pos + w + 40, 49);
+      display_.print(artist);
+    }
+  }
+
+  // Clipping trick: Hide text that spills into the margins
+  display_.fillRect(0, 33, 12, 31, 0);   // Left side margin
+  display_.fillRect(108, 33, 20, 31, 0); // Right side (Waves area)
+  
+  // Waves icon over the masked area
+  display_.drawBitmap(110, 43, image_Waves_bits, 18, 21, 1);
 
   display_.display();
 }
 
-void UiRenderer::showSettingsScreen(int selectedIndex) {
+void UiRenderer::showSettingsScreen(int selectedIndex, bool isMuted, bool is24H) {
   display_.clearDisplay();
-  display_.setTextColor(SSD1306_WHITE);
   display_.setTextWrap(false);
   display_.setTextSize(1);
+  display_.setFont();
 
-  display_.setCursor(0, 10);
+  // Draw header
+  display_.setTextColor(SSD1306_WHITE);
+  display_.setCursor(0, 4);
   display_.print("Settings");
+  display_.drawLine(0, 14, 128, 14, SSD1306_WHITE);
 
-  display_.setCursor(0, 24);
-  display_.print(selectedIndex == 0 ? "> Clock" : "  Clock");
-
-  display_.setCursor(0, 36);
-  display_.print(selectedIndex == 1 ? "> Sound" : "  Sound");
-
-  display_.setCursor(0, 48);
-  display_.print(selectedIndex == 2 ? "> WiFi" : "  WiFi");
+  String options[4];
+  options[0] = String("Sound: ") + (isMuted ? "OFF" : "ON");
+  options[1] = String("Clock: ") + (is24H ? "24H" : "12H");
+  options[2] = "WiFi Setup";
+  options[3] = "Exit";
+  
+  int startY = 18;
+  int itemHeight = 11; 
+  
+  for (int i = 0; i < 4; i++) {
+    int y = startY + i * itemHeight;
+    if (i == selectedIndex) {
+      display_.fillRect(0, y - 1, 128, itemHeight, SSD1306_WHITE);
+      display_.setTextColor(SSD1306_BLACK); 
+    } else {
+      display_.setTextColor(SSD1306_WHITE);
+    }
+    display_.setCursor(4, y);
+    display_.print(options[i]);
+  }
 
   display_.display();
 }

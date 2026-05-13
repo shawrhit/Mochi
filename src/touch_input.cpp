@@ -1,55 +1,54 @@
 #include "touch_input.h"
-
 #include <Arduino.h>
 
 TouchInput::TouchInput()
     : pin_(-1),
-      lastReadState_(HIGH),
-      stableState_(HIGH),
-      touchLatched_(false),
-  lastDebounceMs_(0),
-  pressStartMs_(0),
-  tapped_(false) {}
+      currentState_(HIGH),
+      lastState_(HIGH),
+      lastDebounceTime_(0),
+      pressStartTime_(0),
+      tapped_(false) {}
 
 void TouchInput::begin(int pin) {
   pin_ = pin;
   pinMode(pin_, INPUT_PULLUP);
-  lastReadState_ = digitalRead(pin_);
-  stableState_ = lastReadState_;
-  touchLatched_ = false;
-  lastDebounceMs_ = millis();
-  pressStartMs_ = 0;
+  currentState_ = digitalRead(pin_);
+  lastState_ = currentState_;
+  lastDebounceTime_ = millis();
+  pressStartTime_ = 0;
   tapped_ = false;
 }
 
 void TouchInput::update() {
-  if (pin_ < 0) {
-    return;
+  if (pin_ < 0) return;
+
+  int reading = digitalRead(pin_);
+  unsigned long now = millis();
+
+  if (reading != lastState_) {
+    lastDebounceTime_ = now;
   }
 
-  const bool state = digitalRead(pin_);
-  const unsigned long now = millis();
+  if ((now - lastDebounceTime_) > 50) {
+    if (reading != currentState_) {
+      currentState_ = reading;
 
-  if (state != lastReadState_) {
-    lastDebounceMs_ = now;
-    lastReadState_ = state;
-  }
-
-  if (now - lastDebounceMs_ < 30) {
-    return;
-  }
-
-  if (stableState_ != state) {
-    stableState_ = state;
-    if (stableState_ == LOW) {
-      pressStartMs_ = now;
-      touchLatched_ = false;
-      tapped_ = true;
-    } else {
-      pressStartMs_ = 0;
-      touchLatched_ = false;
+      if (currentState_ == LOW) {
+        pressStartTime_ = now;
+        tapped_ = false;
+      } else {
+        if (pressStartTime_ > 0) {
+          unsigned long duration = now - pressStartTime_;
+          if (duration < 2000) {
+            tapped_ = true;
+          }
+        }
+        pressStartTime_ = 0;
+      }
     }
   }
+
+  lastState_ = reading;
 }
 
 bool TouchInput::wasTapped() {
@@ -60,11 +59,13 @@ bool TouchInput::wasTapped() {
   return false;
 }
 
-bool TouchInput::isPressed() const { return stableState_ == LOW; }
+bool TouchInput::isPressed() const {
+  return currentState_ == LOW;
+}
 
 unsigned long TouchInput::pressedMs() const {
-  if (stableState_ != LOW || pressStartMs_ == 0) {
+  if (currentState_ != LOW || pressStartTime_ == 0) {
     return 0;
   }
-  return millis() - pressStartMs_;
+  return millis() - pressStartTime_;
 }

@@ -20,7 +20,11 @@ unsigned long parseEpochFromJson(const String& body) {
 }
 }  // namespace
 
-TimeService::TimeService() : synced_(false), tzSpec_("UTC0"), lastAttemptMs_(0), attemptCount_(0) {}
+TimeService::TimeService() : is24Hour_(true), synced_(false), tzSpec_("UTC0"), lastAttemptMs_(0), attemptCount_(0) {}
+
+void TimeService::set24Hour(bool is24Hour) { is24Hour_ = is24Hour; }
+
+bool TimeService::is24Hour() const { return is24Hour_; }
 
 void TimeService::setTimezone(const char* tzSpec) {
   if (tzSpec != nullptr) {
@@ -124,8 +128,21 @@ String TimeService::timeString() const {
   localtime_r(&now, &ti);
 
   char buf[10];
-  strftime(buf, sizeof(buf), "%H:%M:%S", &ti);
+  if (is24Hour_) {
+    strftime(buf, sizeof(buf), "%H:%M:%S", &ti);
+  } else {
+    strftime(buf, sizeof(buf), "%I:%M:%S", &ti);
+  }
   return String(buf);
+}
+
+String TimeService::ampmString() const {
+  if (is24Hour_) return "";
+  time_t now;
+  time(&now);
+  struct tm ti;
+  localtime_r(&now, &ti);
+  return ti.tm_hour >= 12 ? "PM" : "AM";
 }
 
 String TimeService::dateString() const {

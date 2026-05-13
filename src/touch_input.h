@@ -12,10 +12,9 @@ class TouchInput {
 
  private:
   int pin_;
-  bool lastReadState_;
-  bool stableState_;
-  bool touchLatched_;
-  unsigned long lastDebounceMs_;
-  unsigned long pressStartMs_;
+  bool currentState_;
+  bool lastState_;
+  unsigned long lastDebounceTime_;
+  unsigned long pressStartTime_;
   bool tapped_;
 };

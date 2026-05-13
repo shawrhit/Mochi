@@ -25,8 +25,9 @@ class UiRenderer {
       const String& title,
       const String& artist,
       const String& appName,
-      const String& timeText);
-  void showSettingsScreen(int selectedIndex);
+      const String& timeText,
+      unsigned long now);
+  void showSettingsScreen(int selectedIndex, bool isMuted, bool is24H);
   void showNotificationScreen(const String& text, bool isCall);
 
  private:

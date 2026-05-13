@@ -16,8 +16,8 @@ constexpr char kPrefsSsid[] = "ssid";
 constexpr char kPrefsPass[] = "pass";
 constexpr char kPrefsCity[] = "city";
 constexpr char kPrefsSkip[] = "skip_wifi";
-constexpr char kPortalSsid[] = "shaws.systems";
-constexpr char kPortalPass[] = "shawsetup";
+constexpr char kPortalSsid[] = "Mochi";
+constexpr char kPortalPass[] = "mochisetup";
 constexpr char kFallbackSsid[] = "5G Lab-2.4G";
 constexpr char kFallbackPass[] = "penance@007";
 constexpr int kPortalChannel = 1;
@@ -29,7 +29,7 @@ const char kPortalPage[] PROGMEM = R"HTML(
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>shaws.systems setup</title>
+<title>Mochi setup</title>
 <style>
   :root { --bg:#f4f6fb; --ink:#0f172a; --muted:#334155; --line:#cbd5e1; --card:#ffffff; }
   body { margin:0; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink); background:radial-gradient(circle at 20% 20%,#dbeafe,transparent 45%),radial-gradient(circle at 80% 30%,#cffafe,transparent 40%),var(--bg); }
@@ -46,7 +46,7 @@ const char kPortalPage[] PROGMEM = R"HTML(
 <body>
   <div class="wrap">
     <form class="card" method="POST" action="/save">
-      <h1>Connect shaws.systems</h1>
+      <h1>Connect Mochi</h1>
       <p>Enter your WiFi credentials and the device will restart into station mode.</p>
       <label>WiFi SSID</label>
       <input name="ssid" required maxlength="64" />
@@ -56,7 +56,7 @@ const char kPortalPage[] PROGMEM = R"HTML(
       <input name="city" maxlength="64" placeholder="Shillong" />
       <button type="submit">Save & Connect</button>
       <button type="submit" formaction="/skip">Skip WiFi For Now</button>
-      <div class="foot">AP: shaws.systems | pass: shawsetup</div>
+      <div class="foot">AP: Mochi | pass: mochisetup</div>
     </form>
   </div>
 </body>
