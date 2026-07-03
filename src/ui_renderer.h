@@ -28,8 +28,18 @@ class UiRenderer {
       const String& appName,
       const String& timeText,
       unsigned long now);
+  void showPomodoroScreen(
+      const String& phaseText,
+      unsigned long remainingMs,
+      unsigned long totalMs,
+      bool isRunning,
+      bool isComplete,
+      int currentSession,
+      int totalSessions,
+      const String& localTime);
   void showSettingsScreen(int selectedIndex, bool isMuted, bool is24H);
   void showNotificationScreen(const String& text, bool isCall);
+  void showFaceScreen();
 
  private:
   Adafruit_SSD1306& display_;

@@ -4,54 +4,75 @@
 #include "touch_input.h"
 #include <Arduino.h>
 
+namespace {
+constexpr unsigned long kDebounceMs = 35;
+constexpr unsigned long kReleaseGraceMs = 120;
+constexpr unsigned long kTapMaxMs = 2000;
+}  // namespace
+
 TouchInput::TouchInput()
     : pin_(-1),
+      rawState_(LOW),
       currentState_(LOW),
-      lastState_(LOW),
       lastDebounceTime_(0),
       pressStartTime_(0),
+      releaseStartTime_(0),
       tapped_(false) {}
 
 void TouchInput::begin(int pin) {
   pin_ = pin;
   pinMode(pin_, INPUT);
-  currentState_ = digitalRead(pin_);
-  lastState_ = currentState_;
+  rawState_ = digitalRead(pin_);
+  currentState_ = rawState_;
   lastDebounceTime_ = millis();
-  pressStartTime_ = 0;
+  pressStartTime_ = currentState_ == HIGH ? lastDebounceTime_ : 0;
+  releaseStartTime_ = 0;
   tapped_ = false;
 }
 
 void TouchInput::update() {
   if (pin_ < 0) return;
 
-  int reading = digitalRead(pin_);
-  unsigned long now = millis();
+  const bool reading = digitalRead(pin_) == HIGH;
+  const unsigned long now = millis();
 
-  if (reading != lastState_) {
+  if (reading != rawState_) {
+    rawState_ = reading;
     lastDebounceTime_ = now;
-  }
-
-  if ((now - lastDebounceTime_) > 50) {
-    if (reading != currentState_) {
-      currentState_ = reading;
-
-      if (currentState_ == HIGH) {
-        pressStartTime_ = now;
-        tapped_ = false;
-      } else {
-        if (pressStartTime_ > 0) {
-          unsigned long duration = now - pressStartTime_;
-          if (duration < 2000) {
-            tapped_ = true;
-          }
-        }
-        pressStartTime_ = 0;
-      }
+    if (reading == HIGH) {
+      releaseStartTime_ = 0;
     }
   }
 
-  lastState_ = reading;
+  if (rawState_ == currentState_ || now - lastDebounceTime_ < kDebounceMs) {
+    return;
+  }
+
+  if (rawState_ == HIGH) {
+    currentState_ = HIGH;
+    pressStartTime_ = lastDebounceTime_;
+    releaseStartTime_ = 0;
+    tapped_ = false;
+    return;
+  }
+
+  if (releaseStartTime_ == 0) {
+    releaseStartTime_ = lastDebounceTime_;
+  }
+
+  if (now - releaseStartTime_ < kReleaseGraceMs) {
+    return;
+  }
+
+  currentState_ = LOW;
+  if (pressStartTime_ > 0) {
+    const unsigned long duration = releaseStartTime_ - pressStartTime_;
+    if (duration < kTapMaxMs) {
+      tapped_ = true;
+    }
+  }
+  pressStartTime_ = 0;
+  releaseStartTime_ = 0;
 }
 
 bool TouchInput::wasTapped() {

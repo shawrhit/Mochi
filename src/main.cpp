@@ -26,19 +26,22 @@ Adafruit_SSD1306 display(kScreenWidth, kScreenHeight, &Wire, kOledReset);
 constexpr int kBuzzerPin = 2;
 constexpr int kTouchPin = 10;
 constexpr int kAnimationFrameDelayMs = 200;
-constexpr int kGreetingAnimationIndex = 5;
+constexpr int kWelcomeAnimationIndex = 7;
 constexpr unsigned long kBootHoldMs = 2000;
 constexpr unsigned long kClockRefreshMs = 500;
 constexpr unsigned long kNowPlayingRefreshMs = 50;
-constexpr unsigned long kIdleToFirstAnimationMs = 10000;
-constexpr unsigned long kMinIdleToAnimationMs = 10000;
-constexpr unsigned long kMaxIdleToAnimationMs = 30000;
+constexpr unsigned long kPomodoroRefreshMs = 250;
+constexpr unsigned long kIdleToFirstAnimationMs = 180000;
+constexpr unsigned long kMinIdleToAnimationMs = 180000;
+constexpr unsigned long kMaxIdleToAnimationMs = 300000;
 constexpr unsigned long kNotificationDisplayMs = 5000;
 constexpr unsigned long kNowPlayingDisplayMs = 5000;
 constexpr unsigned long kCallMelodyGapMs = 1000;
 constexpr unsigned long kLongPressMs = 2000;
 constexpr unsigned long kBootTouchWindowMs = 3500;
 constexpr int kSettingsMenuCount = 4;
+constexpr unsigned long kPomodoroWorkMs = 25UL * 60UL * 1000UL;
+constexpr unsigned long kPomodoroBreakMs = 5UL * 60UL * 1000UL;
 
 const char kGreetingMelody[] =
   "G4 200 20, C5 200 20, E5 200 20, G5 200 20, C6 200 20, D6 200 20, E6 400 200";
@@ -60,20 +63,25 @@ TouchInput touchInput;
 enum class ScreenMode {
   Animation,
   Clock,
+  Face,
   Notification,
   Portal,
   NowPlaying,
+  Pomodoro,
   Settings
 };
 
 ScreenMode screenMode = ScreenMode::Animation;
+ScreenMode idleScreenMode = ScreenMode::Clock;
 unsigned long lastClockDraw = 0;
 unsigned long lastNowPlayingDraw = 0;
+unsigned long lastPomodoroDraw = 0;
 unsigned long lastInteractionMs = 0;
 unsigned long nextAnimationAtMs = 0;
 unsigned long notificationUntilMs = 0;
 unsigned long nowPlayingUntilMs = 0;
 bool longPressHandled = false;
+bool extraLongPressHandled = false;
 bool networkStarted = false;
 bool hasNotification = false;
 bool hasNowPlaying = false;
@@ -91,6 +99,19 @@ bool callMelodySequenceActive = false;
 bool callMelodyToneActive = false;
 bool callAlertActive = false;
 bool callAlertEnded = false;
+
+enum class PomodoroPhase {
+  Work,
+  Break
+};
+
+PomodoroPhase pomodoroPhase = PomodoroPhase::Work;
+bool pomodoroRunning = false;
+bool pomodoroComplete = false;
+unsigned long pomodoroRemainingMs = kPomodoroWorkMs;
+unsigned long pomodoroLastTickMs = 0;
+int pomodoroSession = 1;
+constexpr int kPomodoroTotalSessions = 4;
 
 void chronosConnectionCallback(bool state) {
   Serial.print("Chronos: ");
@@ -279,6 +300,116 @@ void showNowPlaying() {
   ui.showNowPlayingScreen(title, artist, appName, timeText, millis());
 }
 
+unsigned long pomodoroTotalMs() {
+  return pomodoroPhase == PomodoroPhase::Work ? kPomodoroWorkMs : kPomodoroBreakMs;
+}
+
+String pomodoroPhaseText() {
+  return pomodoroPhase == PomodoroPhase::Work ? "FOCUS" : "BREAK";
+}
+
+void showPomodoro() {
+  String timeTxt = activeTimeString();
+  if (timeTxt.length() > 5) {
+    timeTxt = timeTxt.substring(0, 5);
+  }
+  ui.showPomodoroScreen(
+      pomodoroPhaseText(),
+      pomodoroRemainingMs,
+      pomodoroTotalMs(),
+      pomodoroRunning,
+      pomodoroComplete,
+      pomodoroSession,
+      kPomodoroTotalSessions,
+      timeTxt);
+}
+
+void togglePomodoro(unsigned long now) {
+  if (pomodoroComplete) {
+    pomodoroComplete = false;
+  }
+
+  if (pomodoroRemainingMs == 0) {
+    pomodoroRemainingMs = pomodoroTotalMs();
+  }
+
+  pomodoroRunning = !pomodoroRunning;
+  pomodoroLastTickMs = now;
+  showPomodoro();
+}
+
+void startPomodoro(unsigned long now) {
+  pomodoroComplete = false;
+  pomodoroRunning = true;
+  pomodoroLastTickMs = now;
+}
+
+void resetPomodoro(unsigned long now) {
+  pomodoroPhase = PomodoroPhase::Work;
+  pomodoroComplete = false;
+  pomodoroRemainingMs = kPomodoroWorkMs;
+  pomodoroRunning = true;
+  pomodoroLastTickMs = now;
+  pomodoroSession = 1;
+  showPomodoro();
+}
+
+void enterPomodoroMode(unsigned long now) {
+  screenMode = ScreenMode::Pomodoro;
+  nowPlayingAutoHide = false;
+  if (!pomodoroRunning) {
+    startPomodoro(now);
+  }
+  showPomodoro();
+}
+
+void advancePomodoroPhase() {
+  if (pomodoroPhase == PomodoroPhase::Work) {
+    pomodoroPhase = PomodoroPhase::Break;
+    pomodoroRemainingMs = kPomodoroBreakMs;
+  } else {
+    pomodoroPhase = PomodoroPhase::Work;
+    pomodoroRemainingMs = kPomodoroWorkMs;
+    pomodoroSession++;
+    if (pomodoroSession > kPomodoroTotalSessions) {
+      pomodoroSession = 1;
+    }
+  }
+  pomodoroRunning = false;
+  pomodoroComplete = true;
+}
+
+void updatePomodoro(unsigned long now) {
+  if (!pomodoroRunning) {
+    return;
+  }
+
+  const unsigned long elapsed = now - pomodoroLastTickMs;
+  if (elapsed == 0) {
+    return;
+  }
+  pomodoroLastTickMs = now;
+
+  if (elapsed < pomodoroRemainingMs) {
+    pomodoroRemainingMs -= elapsed;
+    return;
+  }
+
+  advancePomodoroPhase();
+  if (!isMuted) {
+    soundManager.startMelody(kNotificationMelody);
+  }
+}
+
+void returnToIdleScreen() {
+  screenMode = idleScreenMode;
+  if (idleScreenMode == ScreenMode::Face) {
+    ui.showFaceScreen();
+  } else {
+    drawClock();
+  }
+}
+
 void showSettings() {
   ui.showSettingsScreen(settingsIndex, isMuted, timeService.is24Hour());
 }
@@ -288,7 +419,12 @@ void enterAnimationMode(int playlistIndex) {
     return;
   }
 
-  animationPlayer.start(kPlaylist[playlistIndex], kAnimationFrameDelayMs);
+  int delayMs = kAnimationFrameDelayMs;
+  if (playlistIndex == kWelcomeAnimationIndex) {
+    delayMs = 100; // Fast framerate for rev animation
+  }
+
+  animationPlayer.start(kPlaylist[playlistIndex], delayMs);
   screenMode = ScreenMode::Animation;
 }
 
@@ -365,7 +501,7 @@ void setup() {
   if (!isMuted) {
     soundManager.startMelody(kGreetingMelody);
   }
-  enterAnimationMode(kGreetingAnimationIndex);
+  enterAnimationMode(kWelcomeAnimationIndex);
   lastInteractionMs = millis();
   nextAnimationAtMs = lastInteractionMs + kIdleToFirstAnimationMs;
 }
@@ -374,6 +510,7 @@ void loop() {
   const unsigned long now = millis();
   soundManager.updateMelody();
   updateCallMelody(now);
+  updatePomodoro(now);
   if (networkStarted) {
     watch.loop();
     wifiPortal.handle();
@@ -389,27 +526,41 @@ void loop() {
   if (touchInput.wasTapped() && !notificationLocked) {
     registerInteraction(now);
     if (screenMode == ScreenMode::Clock) {
+      screenMode = ScreenMode::Face;
+      idleScreenMode = ScreenMode::Face;
+      ui.showFaceScreen();
+    } else if (screenMode == ScreenMode::Face) {
       screenMode = ScreenMode::NowPlaying;
       nowPlayingAutoHide = false;
       showNowPlaying();
     } else if (screenMode == ScreenMode::NowPlaying) {
+      enterPomodoroMode(now);
+    } else if (screenMode == ScreenMode::Pomodoro) {
       screenMode = ScreenMode::Clock;
+      idleScreenMode = ScreenMode::Clock;
       drawClock();
     } else if (screenMode == ScreenMode::Settings) {
       settingsIndex = (settingsIndex + 1) % kSettingsMenuCount;
       showSettings();
     } else {
-      screenMode = ScreenMode::Clock;
-      drawClock();
+      returnToIdleScreen();
     }
   }
 
-  if (!notificationLocked && touchInput.isPressed() && !longPressHandled &&
-      touchInput.pressedMs() >= kLongPressMs) {
-    longPressHandled = true;
-    registerInteraction(now);
-    
-    if (screenMode == ScreenMode::Settings) {
+  if (!notificationLocked && touchInput.isPressed()) {
+    if (touchInput.pressedMs() >= 4000 && screenMode == ScreenMode::Pomodoro) {
+      if (!extraLongPressHandled) {
+        extraLongPressHandled = true;
+        registerInteraction(now);
+        resetPomodoro(now);
+      }
+    } else if (touchInput.pressedMs() >= kLongPressMs && !longPressHandled) {
+      longPressHandled = true;
+      registerInteraction(now);
+      
+      if (screenMode == ScreenMode::Pomodoro) {
+        togglePomodoro(now);
+      } else if (screenMode == ScreenMode::Settings) {
       if (settingsIndex == 0) {
         isMuted = !isMuted;
         showSettings();
@@ -421,8 +572,9 @@ void loop() {
         screenMode = ScreenMode::Portal;
         ui.showPortalScreen("Mochi", wifiPortal.localIp());
       } else if (settingsIndex == 3) {
-        screenMode = ScreenMode::Clock;
-        drawClock();
+        screenMode = idleScreenMode;
+        if (screenMode == ScreenMode::Clock) drawClock();
+        else ui.showFaceScreen();
       }
     } else {
       screenMode = ScreenMode::Settings;
@@ -430,9 +582,11 @@ void loop() {
       showSettings();
     }
   }
+}
 
   if (!touchInput.isPressed()) {
     longPressHandled = false;
+    extraLongPressHandled = false;
   }
 
   if (hasNotification) {
@@ -448,7 +602,7 @@ void loop() {
     registerInteraction(now);
   }
 
-  if (hasNowPlaying && !callAlertActive) {
+  if (hasNowPlaying && !callAlertActive && screenMode != ScreenMode::Pomodoro) {
     hasNowPlaying = false;
     showNowPlaying();
     screenMode = ScreenMode::NowPlaying;
@@ -460,16 +614,14 @@ void loop() {
   if (callAlertEnded) {
     callAlertEnded = false;
     if (screenMode == ScreenMode::Notification && latestNotificationIsCall && !callAlertActive) {
-      screenMode = ScreenMode::Clock;
-      drawClock();
+      returnToIdleScreen();
     }
   }
 
   switch (screenMode) {
     case ScreenMode::Animation:
       if (animationPlayer.update()) {
-        screenMode = ScreenMode::Clock;
-        drawClock();
+        returnToIdleScreen();
         nextAnimationAtMs = now + random(kMinIdleToAnimationMs, kMaxIdleToAnimationMs);
         startNetworking();
       }
@@ -485,22 +637,25 @@ void loop() {
       }
       break;
 
+    case ScreenMode::Face:
+      if (now - lastInteractionMs >= kIdleToFirstAnimationMs && now >= nextAnimationAtMs) {
+        enterRandomAnimation();
+      }
+      break;
+
     case ScreenMode::Notification:
       if (!callAlertActive && now >= notificationUntilMs) {
-        screenMode = ScreenMode::Clock;
-        drawClock();
+        returnToIdleScreen();
       }
       break;
 
     case ScreenMode::Portal:
       if (wifiPortal.isWifiConnected()) {
-        screenMode = ScreenMode::Clock;
-        drawClock();
+        returnToIdleScreen();
         break;
       }
       if (now - lastInteractionMs >= kIdleToFirstAnimationMs) {
-        screenMode = ScreenMode::Clock;
-        drawClock();
+        returnToIdleScreen();
       }
       break;
 
@@ -510,8 +665,14 @@ void loop() {
         showNowPlaying();
       }
       if (nowPlayingAutoHide && now >= nowPlayingUntilMs) {
-        screenMode = ScreenMode::Clock;
-        drawClock();
+        returnToIdleScreen();
+      }
+      break;
+
+    case ScreenMode::Pomodoro:
+      if (now - lastPomodoroDraw >= kPomodoroRefreshMs) {
+        lastPomodoroDraw = now;
+        showPomodoro();
       }
       break;
 
