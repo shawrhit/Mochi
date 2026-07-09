@@ -13,7 +13,7 @@
 #include "ui_assets.h"
 
 namespace {
-constexpr int kSettingsMenuCount = 4;
+constexpr int kSettingsMenuCount = 5;
 constexpr int kMarqueeMaxWidth = 100;
 constexpr int kMarqueeGap = 40;
 constexpr int kMarqueeSpeed = 100;
@@ -595,10 +595,11 @@ void UiRenderer::showSettingsScreen(int selectedIndex, bool isMuted, bool is24H)
   options[0] = String("Sound: ") + (isMuted ? "OFF" : "ON");
   options[1] = String("Clock: ") + (is24H ? "24H" : "12H");
   options[2] = "WiFi Setup";
-  options[3] = "Exit";
+  options[3] = "Power Off";
+  options[4] = "Exit";
   
-  int startY = 18;
-  int itemHeight = 11; 
+  int startY = 16;
+  int itemHeight = 9; 
   
   for (int i = 0; i < kSettingsMenuCount; i++) {
     int y = startY + i * itemHeight;

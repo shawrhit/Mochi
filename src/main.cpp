@@ -7,6 +7,9 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <ChronosESP32.h>
+#include <esp_sleep.h>
+#include "esp_system.h"
+#include "esp_system.h"
 
 #include "animation_catalog.h"
 #include "animation_player.h"
@@ -39,7 +42,7 @@ constexpr unsigned long kNowPlayingDisplayMs = 5000;
 constexpr unsigned long kCallMelodyGapMs = 1000;
 constexpr unsigned long kLongPressMs = 2000;
 constexpr unsigned long kBootTouchWindowMs = 3500;
-constexpr int kSettingsMenuCount = 4;
+constexpr int kSettingsMenuCount = 5;
 constexpr unsigned long kPomodoroWorkMs = 25UL * 60UL * 1000UL;
 constexpr unsigned long kPomodoroBreakMs = 5UL * 60UL * 1000UL;
 
@@ -49,6 +52,8 @@ const char kNotificationMelody[] =
   "G6 50 10, B6 100 10";
 const char kCallMelody[] =
   "C6 150 50, E6 150 50, G6 150 50, C7 300 100, G6 150 50, E6 150 50, D6 150 50, G6 300 100, C6 150 50, E6 150 50, G6 150 50, C7 500 800";
+const char kShutdownMelody[] =
+  "E6 150 20, C6 150 20, G5 150 20, C5 400 0";
 constexpr int kCallMelodyPlays = 3;
 
 AnimationPlayer animationPlayer(display);
@@ -465,6 +470,33 @@ void startNetworking() {
 }
 
 void setup() {
+  esp_reset_reason_t reason = esp_reset_reason();
+  if (reason == ESP_RST_BROWNOUT) {
+    Wire.begin(21, 20);
+    if (display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+      display.clearDisplay();
+      display.setTextSize(2);
+      display.setTextColor(SSD1306_WHITE);
+      display.setCursor(20, 16);
+      display.print("BATTERY");
+      display.setCursor(40, 36);
+      display.print("LOW");
+      display.display();
+      delay(2000);
+      display.ssd1306_command(SSD1306_DISPLAYOFF);
+    }
+
+    pinMode(kTouchPin, INPUT);
+    gpio_wakeup_enable((gpio_num_t)kTouchPin, GPIO_INTR_HIGH_LEVEL);
+    esp_sleep_enable_gpio_wakeup();
+    esp_light_sleep_start();
+    
+    while (digitalRead(kTouchPin) == HIGH) {
+      delay(10);
+    }
+    esp_restart();
+  }
+
   delay(1000);
   Serial.begin(115200);
   Serial.println("Mochi v1.2 by shaws.systems");
@@ -572,6 +604,41 @@ void loop() {
         screenMode = ScreenMode::Portal;
         ui.showPortalScreen("Mochi", wifiPortal.localIp());
       } else if (settingsIndex == 3) {
+        if (!isMuted) {
+          soundManager.startMelody(kShutdownMelody);
+          while (soundManager.isMelodyActive()) {
+            soundManager.updateMelody();
+            delay(5);
+          }
+        }
+        
+        display.ssd1306_command(SSD1306_DISPLAYOFF);
+        digitalWrite(kBuzzerPin, LOW);
+
+        // Wait for user to release their finger before sleeping
+        while (digitalRead(kTouchPin) == HIGH) {
+          delay(10);
+        }
+        delay(100);
+
+        gpio_wakeup_enable((gpio_num_t)kTouchPin, GPIO_INTR_HIGH_LEVEL);
+        esp_sleep_enable_gpio_wakeup();
+        esp_light_sleep_start();
+
+        // System wakes up here!
+        // Wait for user to release their finger so we don't trigger a tap immediately
+        while (digitalRead(kTouchPin) == HIGH) {
+          delay(10);
+        }
+        delay(100);
+
+        display.ssd1306_command(SSD1306_DISPLAYON);
+        screenMode = idleScreenMode;
+        if (screenMode == ScreenMode::Clock) drawClock();
+        else ui.showFaceScreen();
+        lastInteractionMs = millis();
+        longPressHandled = true;
+      } else if (settingsIndex == 4) {
         screenMode = idleScreenMode;
         if (screenMode == ScreenMode::Clock) drawClock();
         else ui.showFaceScreen();
